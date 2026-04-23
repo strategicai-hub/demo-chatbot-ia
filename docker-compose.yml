@@ -27,8 +27,8 @@ x-common-env: &common-env
   - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
 
 services:
-  {{SLUG}}-api:
-    image: ghcr.io/{{GITHUB_OWNER}}/{{REPO_NAME}}:latest
+  luitz-prime-api:
+    image: ghcr.io/strategicai-hub/luitz-prime:latest
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     networks:
       - network_public
@@ -41,14 +41,14 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=network_public"
-        - "traefik.http.routers.{{SLUG}}.rule=Host(`webhook-whatsapp.strategicai.com.br`) && PathPrefix(`/{{SLUG}}`)"
-        - "traefik.http.routers.{{SLUG}}.entrypoints=websecure"
-        - "traefik.http.routers.{{SLUG}}.tls=true"
-        - "traefik.http.routers.{{SLUG}}.tls.certresolver=letsencryptresolver"
-        - "traefik.http.services.{{SLUG}}.loadbalancer.server.port=8000"
+        - "traefik.http.routers.luitz-prime.rule=Host(`webhook-whatsapp.strategicai.com.br`) && PathPrefix(`/luitz-prime`)"
+        - "traefik.http.routers.luitz-prime.entrypoints=websecure"
+        - "traefik.http.routers.luitz-prime.tls=true"
+        - "traefik.http.routers.luitz-prime.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.luitz-prime.loadbalancer.server.port=8000"
 
-  {{SLUG}}-worker:
-    image: ghcr.io/{{GITHUB_OWNER}}/{{REPO_NAME}}:latest
+  luitz-prime-worker:
+    image: ghcr.io/strategicai-hub/luitz-prime:latest
     command: python worker.py
     networks:
       - network_public
