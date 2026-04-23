@@ -1,0 +1,38 @@
+niche: consorcio
+
+business:
+  name: Luitz Prime Consórcio
+  address: Avenida Higienópolis, nº 1100 - Londrina-PR
+
+assistant:
+  name: Vic
+  # greeting é injetado dinamicamente pelo código (prompt.py) com base no
+  # horário de São Paulo: "bom dia" / "boa tarde" / "boa noite". Qualquer
+  # valor informado aqui é ignorado.
+  greeting: ""
+
+consorcio:
+  operator: Embracon Consórcio
+  categories:
+    - Imóvel
+    - Construção
+    - Capital de Giro
+    - Automóvel
+    - Caminhão e Máquinas Agrícolas
+  terms: "35, 60, 100, 120, 150, 180, 200, 220 e 240"
+  entrance_conditions: Pagamento da primeira parcela.
+
+payment:
+  methods:
+    - crédito
+    - PIX
+    - boleto
+
+differentials:
+  - Especialidade em Contemplação de Curto Prazo
+  - Atendimento Humanizado
+  - Consultoria Total e Ativa
+  - Lucros Altos aos Clientes
+  - Autonomia Para Acelerar os Processos
+
+media: {}
