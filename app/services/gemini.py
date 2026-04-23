@@ -95,6 +95,45 @@ async def generate_summary(phone: str) -> str:
         return ""
 
 
+async def generate_handoff_summary(phone: str) -> str:
+    """Gera um resumo organizado das respostas do lead para o alerta de handoff.
+
+    Diferente de `generate_summary` (1-2 frases), aqui listamos ponto a ponto
+    o que o lead informou, para o consultor humano bater o olho e agir.
+    """
+    _ensure_configured()
+    history = await get_chat_history(phone)
+    if not history:
+        return ""
+
+    lines = []
+    for entry in history[-30:]:
+        role = "Atendente" if entry.get("role") == "model" else "Lead"
+        text = entry.get("parts", [{}])[0].get("text", "")
+        if text:
+            lines.append(f"{role}: {text[:300]}")
+
+    if not lines:
+        return ""
+
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = (
+        "Abaixo esta a conversa entre um atendente e um lead interessado em carta de credito (consorcio). "
+        "Monte um RESUMO OBJETIVO organizando as respostas que o LEAD deu, em formato de lista curta "
+        "(uma linha por topico, no formato 'Topico: resposta'). Use apenas o que o lead respondeu; "
+        "se algum topico nao foi respondido, omita. Nao invente. Nao inclua falas do atendente. "
+        "Topicos possiveis (use o que aparecer): Valor da carta, Finalidade, Parcela maxima, "
+        "Entrada/agio, Tentou financiamento, Motivo de nao financiar, Urgencia, Opcoes ja vistas, "
+        "Tempo de busca, Cidade.\n\n"
+        "Conversa:\n" + "\n".join(lines)
+    )
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip() if response.text else ""
+    except Exception:
+        return ""
+
+
 async def analyze_image(image_bytes: bytes) -> str:
     _ensure_configured()
     model = genai.GenerativeModel("gemini-2.5-flash")

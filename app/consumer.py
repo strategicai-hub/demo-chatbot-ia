@@ -15,7 +15,7 @@ from app.config import settings
 from app.images import MEDIA_DICT
 from app.services import redis_service as rds
 from app.services import uazapi
-from app.services.gemini import chat as gemini_chat, transcribe_audio, analyze_image, generate_summary
+from app.services.gemini import chat as gemini_chat, transcribe_audio, analyze_image, generate_summary, generate_handoff_summary
 from app.services.rabbitmq import consume
 from app.services.redis_keys import session_log_key
 from app.services import sheets_service
@@ -364,12 +364,18 @@ async def _maybe_send_alert(phone: str, lead: dict, user_msg: str) -> None:
         return
 
     contact = lead.get("name", "") or phone
-    motivo = user_msg.strip()[:120] or "Transferencia solicitada pela IA"
-    log(f"[TOOL ALERTA_EQUIPE] Executando(phone={phone}, motivo={motivo[:80]})")
+    log(f"[TOOL ALERTA_EQUIPE] Executando(phone={phone})")
+    try:
+        resumo = await generate_handoff_summary(phone)
+    except Exception as e:
+        log(_err(f"[TOOL ALERTA_EQUIPE] Falha ao gerar resumo - {e}"))
+        resumo = ""
+    if not resumo:
+        resumo = user_msg.strip()[:300] or "Transferencia solicitada pela IA"
     alert_text = (
         f"\U0001f6a8 ATENDIMENTO HUMANO \U0001f6a8\n"
         f"Contato: {contact} ({phone})\n"
-        f"Motivo: {motivo}"
+        f"Resumo:\n{resumo}"
     )
     try:
         await uazapi.send_text(settings.ALERT_PHONE, alert_text)
