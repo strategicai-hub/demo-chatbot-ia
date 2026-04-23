@@ -9,5 +9,4 @@ build/
 venv/
 *.log
 .secrets.json
-client.yaml
 .pytest_cache/
