@@ -20,6 +20,7 @@ from app.client_data import load_client_data
 
 DEFAULT_NICHE = "academia"
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
+_WEEKDAYS_PT = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
 
 def _compute_time_greeting() -> str:
@@ -31,6 +32,10 @@ def _compute_time_greeting() -> str:
     return "boa noite"
 
 
+def _compute_today_weekday() -> str:
+    return _WEEKDAYS_PT[datetime.now(_SP_TZ).weekday()]
+
+
 def build_prompt() -> str:
     prompts_dir = Path(__file__).parent / "prompts"
     env = Environment(
@@ -40,6 +45,7 @@ def build_prompt() -> str:
     data = dict(load_client_data())
     assistant = dict(data.get("assistant") or {})
     assistant["greeting"] = _compute_time_greeting()
+    assistant["today_weekday"] = _compute_today_weekday()
     data["assistant"] = assistant
 
     niche = (data.get("niche") or DEFAULT_NICHE).strip()

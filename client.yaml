@@ -1,7 +1,7 @@
-niche: consorcio
+niche: capital_de_giro
 
 business:
-  name: Luitz Prime Consórcio
+  name: Luitz Prime
   address: Avenida Higienópolis, nº 1100 - Londrina-PR
 
 assistant:
@@ -11,16 +11,13 @@ assistant:
   # valor informado aqui é ignorado.
   greeting: ""
 
-consorcio:
-  operator: Embracon Consórcio
-  categories:
-    - Imóvel
-    - Construção
-    - Capital de Giro
+capital_de_giro:
+  asset_types:
+    - Imóvel urbano
+    - Imóvel rural
+    - Terreno
+    - Área rural
     - Automóvel
-    - Caminhão e Máquinas Agrícolas
-  terms: "35, 60, 100, 120, 150, 180, 200, 220 e 240"
-  entrance_conditions: Pagamento da primeira parcela.
 
 payment:
   methods:
@@ -29,10 +26,9 @@ payment:
     - boleto
 
 differentials:
-  - Especialidade em Contemplação de Curto Prazo
   - Atendimento Humanizado
   - Consultoria Total e Ativa
-  - Lucros Altos aos Clientes
+  - Plano de Pagamento Personalizado
   - Autonomia Para Acelerar os Processos
 
 media: {}

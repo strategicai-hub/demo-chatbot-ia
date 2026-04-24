@@ -373,7 +373,7 @@ async def _maybe_send_alert(phone: str, lead: dict, user_msg: str) -> None:
     if not resumo:
         resumo = user_msg.strip()[:300] or "Transferencia solicitada pela IA"
     alert_text = (
-        f"\U0001f6a8 ATENDIMENTO HUMANO \U0001f6a8\n"
+        f"\U0001f6a8 ATENDIMENTO COM ESPECIALISTA \U0001f6a8\n"
         f"Contato: {contact} ({phone})\n"
         f"Resumo:\n{resumo}"
     )
