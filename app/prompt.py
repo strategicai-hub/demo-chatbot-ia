@@ -1,10 +1,10 @@
 """
 Gera o SYSTEM_PROMPT a partir do template Jinja2 + dados do client.yaml.
 
-O nicho do negócio (academia, escola_cursos, etc.) é lido de
-`client.yaml > niche`. Cada nicho tem um prompt próprio em
-`app/prompts/{niche}.j2`. Se `niche` não estiver definido, usa
-"academia" por padrão (retrocompatibilidade).
+O nicho do negócio (capital_de_giro, consorcio) é determinado dinamicamente
+a partir da mensagem inicial do lead. Cada nicho tem um prompt próprio em
+`app/prompts/{niche}.j2`. Se a mensagem não permitir identificar o nicho,
+recai sobre `client.yaml > niche` (ou `DEFAULT_NICHE`).
 
 `assistant.greeting` é injetado dinamicamente em cada render com base
 no horário atual de São Paulo ("bom dia" / "boa tarde" / "boa noite"),
@@ -18,7 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from app.client_data import load_client_data
 
-DEFAULT_NICHE = "academia"
+DEFAULT_NICHE = "capital_de_giro"
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
 _WEEKDAYS_PT = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
@@ -36,7 +36,23 @@ def _compute_today_weekday() -> str:
     return _WEEKDAYS_PT[datetime.now(_SP_TZ).weekday()]
 
 
-def build_prompt() -> str:
+def detect_niche_from_message(text: str) -> str | None:
+    """Identifica o nicho a partir do conteúdo da mensagem inicial do lead.
+
+    Retorna o nome do nicho ("capital_de_giro" ou "consorcio") ou None se
+    não for possível identificar.
+    """
+    if not text:
+        return None
+    t = text.lower()
+    if "capital de giro" in t:
+        return "capital_de_giro"
+    if "consorcio" in t or "consórcio" in t:
+        return "consorcio"
+    return None
+
+
+def build_prompt(niche: str | None = None) -> str:
     prompts_dir = Path(__file__).parent / "prompts"
     env = Environment(
         loader=FileSystemLoader(str(prompts_dir)),
@@ -48,17 +64,17 @@ def build_prompt() -> str:
     assistant["today_weekday"] = _compute_today_weekday()
     data["assistant"] = assistant
 
-    niche = (data.get("niche") or DEFAULT_NICHE).strip()
-    template_file = f"{niche}.j2"
+    resolved_niche = (niche or data.get("niche") or DEFAULT_NICHE).strip()
+    template_file = f"{resolved_niche}.j2"
     if not (prompts_dir / template_file).exists():
         raise FileNotFoundError(
-            f"Prompt do nicho '{niche}' não encontrado em {prompts_dir / template_file}. "
+            f"Prompt do nicho '{resolved_niche}' não encontrado em {prompts_dir / template_file}. "
             f"Nichos disponíveis: {[p.stem for p in prompts_dir.glob('*.j2')]}"
         )
     template = env.get_template(template_file)
     return template.render(**data)
 
 
-def get_system_prompt() -> str:
+def get_system_prompt(niche: str | None = None) -> str:
     """Renderiza o prompt sob demanda (greeting reflete o horário atual)."""
-    return build_prompt()
+    return build_prompt(niche=niche)

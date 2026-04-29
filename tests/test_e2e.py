@@ -107,7 +107,7 @@ async def test_full_flow_webhook_to_whatsapp(monkeypatch, clean_redis):
             "message": {
                 "sender_pn": f"{phone}@c.us",
                 "senderName": "Teste Lead",
-                "text": "quero informacoes da academia",
+                "text": "Olá! Tenho interesse em capital de giro, preciso de ajuda.",
             }
         })
         assert r.status_code == 200

@@ -17,7 +17,7 @@
 | Google Sheets credentials JSON | Console GCP > Service Account > Keys |
 | Google Sheet ID | URL da planilha (entre /d/ e /edit) |
 | Telefone do dono | Numero com DDI (ex: 5511999990000) |
-| Dados do negocio | Nome, endereco, horarios, precos, professores |
+| Dados do negocio | Nome, endereco e demais campos do nicho (ver client.example.yaml) |
 
 ---
 
@@ -35,9 +35,9 @@ python setup.py
 ```
 
 O script vai perguntar:
-1. **Nome do negocio** - ex: "Academia Muay Thai SP"
-2. **Slug** - identificador unico (ex: "muaythai-sp"), gerado automaticamente
-3. **Nome da assistente** - ex: "Bia"
+1. **Nome do negocio** - ex: "Luitz Prime"
+2. **Slug** - identificador unico (ex: "luitz-prime"), gerado automaticamente
+3. **Nome da assistente** - ex: "Vic"
 4. **Telefone do dono** - para receber alertas
 5. **UAZAPI token** - token da instancia WhatsApp
 6. **GEMINI API key** - chave da API do Google Gemini
@@ -68,60 +68,59 @@ Abra o arquivo `client.yaml` no novo repositorio e preencha **todos** os dados d
 
 #### Secoes do client.yaml
 
+**`niche`** - Nicho do negocio (define o prompt usado)
+```yaml
+# Nichos disponiveis: capital_de_giro, consorcio.
+# Tambem detectado dinamicamente pela mensagem inicial do lead.
+niche: "capital_de_giro"
+```
+
 **`business`** - Dados basicos
 ```yaml
 business:
-  name: "Academia Muay Thai SP"
-  type: "academia de muay thai"
-  address: "Rua Exemplo, 123 - Bairro - Cidade/UF"
+  name: "Luitz Prime"
+  address: "Avenida Higienópolis, nº 1100 - Londrina-PR"
 ```
 
-**`assistant`** - Nome e saudacao
+**`assistant`** - Nome (greeting e injetado pelo codigo conforme horario de SP)
 ```yaml
 assistant:
-  name: "Bia"
-  greeting: "Ola! Sou a Bia, tudo bem?"
+  name: "Vic"
+  greeting: ""
 ```
 
-**`schedule`** - Horarios de aula
+**`capital_de_giro`** - Tipos de bem aceitos como garantia (apenas no nicho capital_de_giro)
 ```yaml
-schedule:
-  class_duration: "1 hora"
-  weekdays:
-    morning: ["7h", "8h", "9h"]
-    afternoon: ["14h", "15h"]
-    evening: ["18h", "19h", "20h"]
-  saturday:
-    morning: ["9h", "10h"]
+capital_de_giro:
+  asset_types:
+    - "Imóvel urbano"
+    - "Imóvel rural"
+    - "Terreno"
+    - "Área rural"
+    - "Automóvel"
 ```
 
-**`teachers`** - Professores
+**`payment`** - Formas de pagamento
 ```yaml
-teachers:
-  - name: "JOAO SILVA"
-    bio: "Descricao do professor."
+payment:
+  methods:
+    - "crédito"
+    - "PIX"
+    - "boleto"
 ```
 
-**`plans`** - Planos e valores
+**`differentials`** - Diferenciais do negocio
 ```yaml
-plans:
-  - name: "Plano Mensal"
-    price: "R$ 200,00 por mes"
-    description: "Acesso livre."
-```
-
-**`promotions`** - Promocoes ativas
-```yaml
-promotions:
-  - name: "INAUGURACAO"
-    details:
-      - "Aula experimental gratuita"
+differentials:
+  - "Atendimento Humanizado"
+  - "Consultoria Total e Ativa"
+  - "Plano de Pagamento Personalizado"
 ```
 
 **`media`** - Midias (imagens, videos)
 ```yaml
 media:
-  "[IMAGEM_ACADEMIA]":
+  "[IMAGEM_EXEMPLO]":
     url: "https://exemplo.com/foto.jpg"
     type: "image"
 ```

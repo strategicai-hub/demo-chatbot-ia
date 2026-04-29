@@ -4,7 +4,7 @@ import google.generativeai as genai
 
 from app.client_data import load_client_data
 from app.config import settings
-from app.prompt import get_system_prompt
+from app.prompt import detect_niche_from_message, get_system_prompt
 from app.services.redis_service import get_chat_history, append_chat_history
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,19 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
 
     history = await get_chat_history(phone)
 
+    first_user_text = next(
+        (
+            entry.get("parts", [{}])[0].get("text", "")
+            for entry in history
+            if entry.get("role") == "user"
+        ),
+        user_message,
+    )
+    niche = detect_niche_from_message(first_user_text)
+
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash",
-        system_instruction=get_system_prompt(),
+        system_instruction=get_system_prompt(niche=niche),
     )
 
     chat_session = model.start_chat(history=history)
@@ -118,13 +128,15 @@ async def generate_handoff_summary(phone: str) -> str:
 
     model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = (
-        "Abaixo esta a conversa entre um atendente e um lead interessado em carta de credito (consorcio). "
+        "Abaixo esta a conversa entre um atendente e um lead. "
         "Monte um RESUMO OBJETIVO organizando as respostas que o LEAD deu, em formato de lista curta "
         "(uma linha por topico, no formato 'Topico: resposta'). Use apenas o que o lead respondeu; "
         "se algum topico nao foi respondido, omita. Nao invente. Nao inclua falas do atendente. "
-        "Topicos possiveis (use o que aparecer): Valor da carta, Finalidade, Parcela maxima, "
-        "Entrada/agio, Tentou financiamento, Motivo de nao financiar, Urgencia, Opcoes ja vistas, "
-        "Tempo de busca, Cidade.\n\n"
+        "Identifique os topicos a partir do que foi efetivamente discutido (ex.: nome, localidade, "
+        "tempo fora do Brasil, intencao de retorno, tipo de investimento, renda mensal, valor de "
+        "investimento mensal, documentos no Brasil, conta bancaria, endereco de referencia, telefone "
+        "de referencia, valor necessario, bem a alienar, finalidade do credito, parcela maxima, "
+        "urgencia, etc.).\n\n"
         "Conversa:\n" + "\n".join(lines)
     )
     try:
