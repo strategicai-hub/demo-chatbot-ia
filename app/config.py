@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # usam o WhatsApp do negocio para trocar recados, sem virar lead.
     BLOCKED_SENDER_PHONES: str = ""
 
+    # Nicho ativo (override sobre a deteccao por palavra-chave).
+    # Se vazio, o nicho e definido pela 1a mensagem do lead ou pelo client.yaml.
+    ACTIVE_NICHE: str = ""
+
+    # Numeros autorizados a usar comandos administrativos via WhatsApp,
+    # como /nicho: <nome>. Comma-separated, formato E.164 sem +.
+    ADMIN_PHONES: str = ""
+
     # CORS (comma-separated, use "*" para liberar todas as origens)
     CORS_ORIGINS: str = "*"
 
@@ -88,6 +96,12 @@ class Settings(BaseSettings):
         if not self.BLOCKED_SENDER_PHONES:
             return set()
         return {p.strip() for p in self.BLOCKED_SENDER_PHONES.split(",") if p.strip()}
+
+    @property
+    def admin_phones_set(self) -> set[str]:
+        if not self.ADMIN_PHONES:
+            return set()
+        return {p.strip() for p in self.ADMIN_PHONES.split(",") if p.strip()}
 
     @property
     def cors_origins(self) -> list[str]:

@@ -4,6 +4,8 @@ x-common-env: &common-env
   - PROJECT_SLUG=${PROJECT_SLUG}
   - BUSINESS_NAME=${BUSINESS_NAME}
   - ASSISTANT_NAME=${ASSISTANT_NAME}
+  - ACTIVE_NICHE=${ACTIVE_NICHE}
+  - ADMIN_PHONES=${ADMIN_PHONES}
   - RABBITMQ_HOST=${RABBITMQ_HOST}
   - RABBITMQ_PORT=${RABBITMQ_PORT}
   - RABBITMQ_USER=${RABBITMQ_USER}
@@ -23,12 +25,13 @@ x-common-env: &common-env
   - ALERT_PHONE=${ALERT_PHONE}
   - DEBOUNCE_BYPASS_PHONES=${DEBOUNCE_BYPASS_PHONES}
   - ALLOWED_PHONES=${ALLOWED_PHONES}
+  - BLOCKED_SENDER_PHONES=${BLOCKED_SENDER_PHONES}
   - GOOGLE_CREDENTIALS_JSON=${GOOGLE_CREDENTIALS_JSON}
   - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
 
 services:
-  luitz-prime-api:
-    image: ghcr.io/strategicai-hub/luitz-prime:latest
+  demo-chatbot-ia-api:
+    image: ghcr.io/strategicai-hub/demo-chatbot-ia:latest
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     networks:
       - network_public
@@ -41,14 +44,14 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=network_public"
-        - "traefik.http.routers.luitz-prime.rule=Host(`webhook-whatsapp.strategicai.com.br`) && PathPrefix(`/luitz-prime`)"
-        - "traefik.http.routers.luitz-prime.entrypoints=websecure"
-        - "traefik.http.routers.luitz-prime.tls=true"
-        - "traefik.http.routers.luitz-prime.tls.certresolver=letsencryptresolver"
-        - "traefik.http.services.luitz-prime.loadbalancer.server.port=8000"
+        - "traefik.http.routers.demo-chatbot-ia.rule=Host(`webhook-whatsapp.strategicai.com.br`) && PathPrefix(`/demo-chatbot-ia`)"
+        - "traefik.http.routers.demo-chatbot-ia.entrypoints=websecure"
+        - "traefik.http.routers.demo-chatbot-ia.tls=true"
+        - "traefik.http.routers.demo-chatbot-ia.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.demo-chatbot-ia.loadbalancer.server.port=8000"
 
-  luitz-prime-worker:
-    image: ghcr.io/strategicai-hub/luitz-prime:latest
+  demo-chatbot-ia-worker:
+    image: ghcr.io/strategicai-hub/demo-chatbot-ia:latest
     command: python worker.py
     networks:
       - network_public

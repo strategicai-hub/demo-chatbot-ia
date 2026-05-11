@@ -1,0 +1,56 @@
+# ============================================================
+# Dados do nicho petshop — usado pelo prompt app/prompts/petshop.j2
+# ============================================================
+
+niche: petshop
+
+business:
+  name: PetVida
+  address: Rua das Acácias, 250 - Vila Mariana, São Paulo
+  hours: de segunda a sábado, das 8h às 18h
+
+assistant:
+  name: Lica
+  # greeting é injetado dinamicamente pelo código com base no horário de São Paulo.
+  greeting: ""
+
+# Tabela de preços (em reais). Chaves ficam sem acento por serem identificadores
+# técnicos lidos pelo template Jinja2.
+petshop:
+  services:
+    banho:
+      cao_pequeno: 45.00
+      cao_medio: 65.00
+      cao_grande: 90.00
+      gato_pequeno: 50.00
+      gato_grande: 70.00
+    tosa_tesoura:
+      cao_pequeno: 60.00
+      cao_medio: 85.00
+      cao_grande: 110.00
+      gato_pequeno: 50.00
+      gato_grande: 70.00
+    tosa_maquina:
+      cao_pequeno: 50.00
+      cao_medio: 70.00
+      cao_grande: 90.00
+    hidratacao:
+      cao_pequeno: 30.00
+      cao_medio: 40.00
+      cao_grande: 55.00
+      gato_pequeno: 35.00
+  combos:
+    banho_tosa_tesoura_cao_pequeno: 95.00
+    banho_tosa_tesoura_cao_medio: 140.00
+    banho_tosa_tesoura_cao_grande: 190.00
+    banho_tosa_maquina_cao_pequeno: 85.00
+    banho_tosa_maquina_cao_medio: 125.00
+    banho_tosa_maquina_cao_grande: 170.00
+    banho_tosa_tesoura_gato_pequeno: 95.00
+    banho_tosa_tesoura_gato_grande: 130.00
+
+differentials:
+  - Atendimento humanizado, sem fila
+  - Profissionais especializados em gatos
+  - Produtos hipoalergênicos inclusos no banho
+  - Agendamento confirmado na hora pelo WhatsApp
