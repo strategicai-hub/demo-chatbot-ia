@@ -26,7 +26,7 @@ from app.client_data import load_client_data
 from app.config import settings
 
 DEFAULT_NICHE = "capital_de_giro"
-ALLOWED_NICHES = {"petshop", "capital_de_giro", "consorcio"}
+ALLOWED_NICHES = {"petshop", "capital_de_giro", "consorcio", "material_construcao"}
 NICHE_KEY = f"{settings.PROJECT_SLUG}:active_niche"
 
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
@@ -78,6 +78,13 @@ def detect_niche_from_message(text: str) -> str | None:
         return "capital_de_giro"
     if "consorcio" in t or "consórcio" in t:
         return "consorcio"
+    if any(k in t for k in (
+        "cimento", "areia", "brita", "tijolo", "bloco", "argamassa",
+        "material de construção", "material de construcao", "construção", "construcao",
+        "tinta", "massa corrida", "cano pvc", "tubo pvc", "disjuntor", "fio elétrico",
+        "fio eletrico", "reforma", "obra",
+    )):
+        return "material_construcao"
     return None
 
 

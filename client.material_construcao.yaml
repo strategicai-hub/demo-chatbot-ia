@@ -1,0 +1,62 @@
+# ============================================================
+# Dados do nicho material_construcao — usado pelo prompt
+# app/prompts/material_construcao.j2
+# ============================================================
+
+niche: material_construcao
+
+business:
+  name: ConstruMax
+  address: Av. dos Construtores, 1820 - Ipiranga, São Paulo
+  hours: de segunda a sexta das 7h às 18h, sábado das 8h às 13h
+
+assistant:
+  name: Bia
+  # greeting é injetado dinamicamente pelo código com base no horário de São Paulo.
+  greeting: ""
+
+# Tabela de preços (em reais). Chaves ficam sem acento por serem identificadores
+# técnicos lidos pelo template Jinja2.
+construcao:
+  basicos:
+    cimento_cp_ii_50kg: 38.00
+    cimento_cp_v_ari_50kg: 45.00
+    areia_media_lavada_m3: 110.00
+    areia_grossa_m3: 115.00
+    brita_0_m3: 130.00
+    brita_1_m3: 130.00
+    cal_hidratada_20kg: 28.00
+    argamassa_colante_ac_ii_20kg: 32.00
+    argamassa_pronta_50kg: 18.00
+  alvenaria:
+    tijolo_baiano_8_furos_unidade: 1.10
+    tijolo_baiano_9_furos_unidade: 1.30
+    bloco_cimento_estrutural_14x19x39: 4.20
+    bloco_cimento_vedacao_9x19x39: 2.80
+  acabamento:
+    tinta_acrilica_18l_economica: 220.00
+    tinta_acrilica_18l_premium: 380.00
+    massa_corrida_pva_18l: 95.00
+    selador_acrilico_18l: 145.00
+    rolo_la_23cm_unidade: 18.00
+  hidraulica:
+    tubo_pvc_soldavel_25mm_6m: 35.00
+    tubo_pvc_esgoto_100mm_6m: 85.00
+    joelho_pvc_25mm_unidade: 2.50
+    luva_pvc_25mm_unidade: 2.20
+  eletrica:
+    fio_flexivel_2_5mm_rolo_100m: 230.00
+    fio_flexivel_4mm_rolo_100m: 360.00
+    conduite_corrugado_25mm_rolo_50m: 95.00
+    disjuntor_monopolar_20a: 18.00
+
+delivery:
+  raio_bairros_proximos_gratis_acima_300: true
+  taxa_entrega_padrao_zona_sul: 80.00
+  prazo_entrega_padrao: "no mesmo dia se o pedido fechar até 13h, ou no próximo dia útil"
+
+differentials:
+  - Entrega no mesmo dia para pedidos fechados até as 13h
+  - Frete grátis para pedidos acima de R$ 300 em bairros próximos
+  - Retirada na loja sem custo
+  - Orçamento de obra completo via WhatsApp
