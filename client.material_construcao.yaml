@@ -49,6 +49,20 @@ construcao:
     fio_flexivel_4mm_rolo_100m: 360.00
     conduite_corrugado_25mm_rolo_50m: 95.00
     disjuntor_monopolar_20a: 18.00
+    disjuntor_bipolar_40a: 75.00
+    tomada_2p_t_10a_completa: 14.00
+    interruptor_simples_completo: 12.00
+    caixa_passagem_4x2: 3.50
+  cobertura:
+    telha_ceramica_portuguesa_unidade: 2.40
+    telha_fibrocimento_2_44m: 95.00
+    cumeeira_ceramica_unidade: 6.50
+    manta_subcobertura_rolo_50m2: 320.00
+  ferragem:
+    vergalhao_8mm_barra_12m: 38.00
+    vergalhao_10mm_barra_12m: 58.00
+    arame_recozido_18_kg: 22.00
+    prego_17x21_kg: 18.00
 
 delivery:
   raio_bairros_proximos_gratis_acima_300: true
