@@ -42,7 +42,9 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(api_router)
-app.include_router(sai_router)
+# Traefik forwards /demo-chatbot-ia/... sem strip — montamos sai_router sob
+# WEBHOOK_PATH para que POST {baseUrl}/sai/bind e /sai/config cheguem aqui.
+app.include_router(sai_router, prefix=settings.WEBHOOK_PATH)
 
 
 @app.get("/health")
