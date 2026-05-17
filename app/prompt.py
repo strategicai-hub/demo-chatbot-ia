@@ -69,6 +69,27 @@ def _compute_today_weekday() -> str:
     return _WEEKDAYS_PT[datetime.now(_SP_TZ).weekday()]
 
 
+def _compute_time_context_block() -> str:
+    """Bloco fixo no topo do prompt informando data/hora atual em São Paulo.
+
+    Sem isso o modelo chuta o dia da semana e erra (ex.: dizia "sexta" num domingo).
+    """
+    now = datetime.now(_SP_TZ)
+    weekday_full = [
+        "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
+        "sexta-feira", "sábado", "domingo",
+    ][now.weekday()]
+    data_str = now.strftime("%d/%m/%Y")
+    hora_str = now.strftime("%H:%M")
+    return (
+        "## CONTEXTO TEMPORAL (autoritativo)\n"
+        f"- Hoje é {weekday_full}, {data_str}.\n"
+        f"- Hora atual em São Paulo: {hora_str}.\n"
+        "- Use SEMPRE estas informações ao mencionar dia, data ou hora. "
+        "Nunca invente outro dia da semana.\n"
+    )
+
+
 def detect_niche_from_message(text: str) -> str | None:
     """Identifica o nicho a partir do conteudo da mensagem inicial do lead.
 
@@ -212,7 +233,7 @@ def build_prompt(niche: str | None = None) -> str:
 
     template = env.get_template(template_file)
     rendered = template.render(**data)
-    return rendered + sai_suffix
+    return _compute_time_context_block() + "\n" + rendered + sai_suffix
 
 
 def get_system_prompt(niche: str | None = None) -> str:
