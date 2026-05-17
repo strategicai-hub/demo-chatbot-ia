@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import google.generativeai as genai
 
@@ -6,6 +8,27 @@ from app.client_data import load_client_data
 from app.config import settings
 from app.prompt import get_system_prompt, resolve_niche
 from app.services.redis_service import get_chat_history, append_chat_history
+
+_SP_TZ = ZoneInfo("America/Sao_Paulo")
+_WEEK = [
+    "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
+    "sexta-feira", "sábado", "domingo",
+]
+
+
+def _temporal_prefix() -> str:
+    """Bloco de contexto temporal injetado na user_message a cada turno.
+
+    O system_instruction também recebe a data, mas o modelo às vezes ignora —
+    repetir no próprio turno do usuário força a leitura imediata.
+    """
+    now = datetime.now(_SP_TZ)
+    tomorrow = now + timedelta(days=1)
+    return (
+        f"[CONTEXTO DO SISTEMA — não responda sobre isto, apenas use como referência: "
+        f"agora são {now.strftime('%H:%M')} de {_WEEK[now.weekday()]}, {now.strftime('%d/%m/%Y')}. "
+        f"Amanhã é {_WEEK[tomorrow.weekday()]}, {tomorrow.strftime('%d/%m/%Y')}.]\n\n"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +63,7 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
     )
 
     chat_session = model.start_chat(history=history)
-    response = chat_session.send_message(user_message)
+    response = chat_session.send_message(_temporal_prefix() + user_message)
     ai_text = response.text.strip() if response.text else ""
 
     tokens = (0, 0, 0)
