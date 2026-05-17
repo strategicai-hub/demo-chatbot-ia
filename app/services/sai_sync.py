@@ -36,6 +36,43 @@ def _configured() -> bool:
     return bool(settings.SAI_TENANT_SLUG and settings.SAI_INGEST_SECRET)
 
 
+def _register_configured() -> bool:
+    return bool(
+        settings.SAI_REGISTRATION_TOKEN
+        and settings.SAI_CHATBOT_SLUG
+        and settings.SAI_CHATBOT_PUBLIC_URL
+    )
+
+
+async def register_with_sai() -> None:
+    """Auto-registra este chatbot no catalogo do SAI.
+
+    Fire-and-forget: o super admin vincula tenant -> chatbot via dropdown no
+    painel admin. Se a env nao estiver configurada, vira no-op.
+    """
+    if not _register_configured():
+        return
+    url = f"{settings.SAI_BASE_URL.rstrip('/')}/api/chatbots/register"
+    payload = {
+        "slug": settings.SAI_CHATBOT_SLUG,
+        "name": settings.SAI_CHATBOT_NAME or settings.SAI_CHATBOT_SLUG,
+        "baseUrl": settings.SAI_CHATBOT_PUBLIC_URL.rstrip("/"),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+            res = await client.post(
+                url,
+                json=payload,
+                headers={"x-registration-token": settings.SAI_REGISTRATION_TOKEN},
+            )
+            if res.status_code == 200:
+                log.info("sai_sync: auto-registro OK (%s -> %s)", payload["slug"], payload["baseUrl"])
+            else:
+                log.warning("sai_sync: auto-registro %s -> %s: %s", url, res.status_code, res.text[:200])
+    except Exception as exc:
+        log.warning("sai_sync: auto-registro %s falhou: %s", url, exc)
+
+
 async def save_snapshot(snapshot: dict[str, Any]) -> None:
     r: Redis = await get_redis()
     await r.set(_key(), json.dumps(snapshot, ensure_ascii=False))
@@ -109,7 +146,14 @@ async def sync_now() -> None:
 
 
 async def start_polling() -> None:
-    """Loop infinito, executado em background no lifespan do FastAPI."""
+    """Loop infinito, executado em background no lifespan do FastAPI.
+
+    Roda o auto-registro uma unica vez antes do primeiro sync. Mesmo que o
+    sync esteja desligado (sem SAI_TENANT_SLUG/SAI_INGEST_SECRET), o
+    auto-registro ainda roda para que o chatbot apareca no dropdown do super
+    admin e seja vinculavel a algum tenant.
+    """
+    await register_with_sai()
     if not _configured():
         log.info("sai_sync: SAI_TENANT_SLUG/SAI_INGEST_SECRET ausentes — polling desativado")
         return

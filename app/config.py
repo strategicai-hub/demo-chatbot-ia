@@ -77,6 +77,14 @@ class Settings(BaseSettings):
     SAI_TENANT_SLUG: str = ""
     SAI_INGEST_SECRET: str = ""
 
+    # Auto-registro do chatbot no catalogo do SAI (POST /api/chatbots/register).
+    # Quando setado, o chatbot aparece no dropdown de "Chatbot IA (vinculo)"
+    # do super admin para ser vinculado a um tenant.
+    SAI_CHATBOT_SLUG: str = ""
+    SAI_CHATBOT_NAME: str = ""
+    SAI_CHATBOT_PUBLIC_URL: str = ""
+    SAI_REGISTRATION_TOKEN: str = ""
+
     @model_validator(mode="after")
     def _fill_defaults_from_slug(self) -> "Settings":
         if not self.RABBITMQ_QUEUE:

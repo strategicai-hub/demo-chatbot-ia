@@ -31,6 +31,10 @@ x-common-env: &common-env
   - SAI_BASE_URL=${SAI_BASE_URL:-https://comercial.strategicai.com.br}
   - SAI_TENANT_SLUG=${SAI_TENANT_SLUG}
   - SAI_INGEST_SECRET=${SAI_INGEST_SECRET}
+  - SAI_CHATBOT_SLUG=${SAI_CHATBOT_SLUG:-demo-chatbot-ia}
+  - SAI_CHATBOT_NAME=${SAI_CHATBOT_NAME:-Demo Chatbot IA}
+  - SAI_CHATBOT_PUBLIC_URL=${SAI_CHATBOT_PUBLIC_URL:-https://webhook-whatsapp.strategicai.com.br/demo-chatbot-ia}
+  - SAI_REGISTRATION_TOKEN=${SAI_REGISTRATION_TOKEN}
 
 services:
   demo-chatbot-ia-api:
