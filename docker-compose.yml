@@ -28,6 +28,9 @@ x-common-env: &common-env
   - BLOCKED_SENDER_PHONES=${BLOCKED_SENDER_PHONES}
   - GOOGLE_CREDENTIALS_JSON=${GOOGLE_CREDENTIALS_JSON}
   - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+  - SAI_BASE_URL=${SAI_BASE_URL:-https://comercial.strategicai.com.br}
+  - SAI_TENANT_SLUG=${SAI_TENANT_SLUG}
+  - SAI_INGEST_SECRET=${SAI_INGEST_SECRET}
 
 services:
   demo-chatbot-ia-api:

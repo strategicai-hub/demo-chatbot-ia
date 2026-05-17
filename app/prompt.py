@@ -24,6 +24,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from app.client_data import load_client_data
 from app.config import settings
+from app.services import sai_sync
 
 DEFAULT_NICHE = "capital_de_giro"
 ALLOWED_NICHES = {"petshop", "capital_de_giro", "consorcio", "material_construcao"}
@@ -31,6 +32,10 @@ NICHE_KEY = f"{settings.PROJECT_SLUG}:active_niche"
 
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
 _WEEKDAYS_PT = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+_WEEKDAYS_PT_FULL = [
+    "Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira",
+    "Quinta-feira", "Sexta-feira", "Sábado",
+]  # indice = weekday do snapshot (0=Domingo .. 6=Sabado, igual ao painel SAI)
 
 _redis_client: redis_sync.Redis | None = None
 
@@ -120,6 +125,69 @@ def resolve_niche(message_text: str | None = None) -> str:
     return base.get("niche") or DEFAULT_NICHE
 
 
+def _format_business_hours(hours: list[dict]) -> str:
+    """Converte o snapshot do painel em texto legivel para o prompt."""
+    lines: list[str] = []
+    for day in hours or []:
+        if not isinstance(day, dict):
+            continue
+        wd = day.get("weekday")
+        windows = day.get("windows") or []
+        if not isinstance(wd, int) or not 0 <= wd < 7 or not windows:
+            continue
+        ranges = [
+            f"{w['start']}–{w['end']}"
+            for w in windows
+            if isinstance(w, dict) and w.get("start") and w.get("end")
+        ]
+        if ranges:
+            lines.append(f"- {_WEEKDAYS_PT_FULL[wd]}: {', '.join(ranges)}")
+    if not lines:
+        return ""
+    return "Horário de funcionamento:\n" + "\n".join(lines)
+
+
+def _format_products(products: list[dict]) -> str:
+    items: list[str] = []
+    for p in products or []:
+        if not isinstance(p, dict) or not p.get("name"):
+            continue
+        name = str(p["name"]).strip()
+        price = p.get("priceCents")
+        if isinstance(price, int) and price > 0:
+            price_str = f"R$ {price / 100:.2f}".replace(".", ",")
+        else:
+            price_str = "consultar"
+        desc = (p.get("description") or "").strip()
+        line = f"- {name} — {price_str}"
+        if desc:
+            line += f" ({desc})"
+        items.append(line)
+    if not items:
+        return ""
+    return "Produtos e serviços:\n" + "\n".join(items)
+
+
+def _apply_sai_snapshot(data: dict, assistant: dict) -> tuple[dict, str]:
+    """Funde snapshot do Painel IA (Redis) e devolve (assistant, suffix do prompt)."""
+    snap = sai_sync.load_snapshot_sync()
+    if not snap or not isinstance(snap, dict):
+        return assistant, ""
+    snap_assistant = snap.get("assistant") or {}
+    display = snap_assistant.get("displayName")
+    if display:
+        assistant["name"] = display
+    suffix_blocks: list[str] = []
+    hours_block = _format_business_hours(snap_assistant.get("businessHours") or [])
+    if hours_block:
+        suffix_blocks.append(hours_block)
+    products_block = _format_products(snap.get("products") or [])
+    if products_block:
+        suffix_blocks.append(products_block)
+    suffix = ("\n\n" + "\n\n".join(suffix_blocks)) if suffix_blocks else ""
+    return assistant, suffix
+
+
 def build_prompt(niche: str | None = None) -> str:
     prompts_dir = Path(__file__).parent / "prompts"
     env = Environment(
@@ -138,10 +206,13 @@ def build_prompt(niche: str | None = None) -> str:
     assistant = dict(data.get("assistant") or {})
     assistant["greeting"] = _compute_time_greeting()
     assistant["today_weekday"] = _compute_today_weekday()
+
+    assistant, sai_suffix = _apply_sai_snapshot(data, assistant)
     data["assistant"] = assistant
 
     template = env.get_template(template_file)
-    return template.render(**data)
+    rendered = template.render(**data)
+    return rendered + sai_suffix
 
 
 def get_system_prompt(niche: str | None = None) -> str:

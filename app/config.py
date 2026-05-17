@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     # CORS (comma-separated, use "*" para liberar todas as origens)
     CORS_ORIGINS: str = "*"
 
+    # Sincronizacao com o Painel IA WhatsApp (SAI Comercial)
+    # Quando SAI_TENANT_SLUG + SAI_INGEST_SECRET estiverem setados, o chatbot
+    # recebe push em POST /sai/config e poleia GET /api/ia/public/config/{slug}
+    # a cada 15min como fallback. Snapshot fica em Redis (`sai:config:{slug}`).
+    SAI_BASE_URL: str = "https://comercial.strategicai.com.br"
+    SAI_TENANT_SLUG: str = ""
+    SAI_INGEST_SECRET: str = ""
+
     @model_validator(mode="after")
     def _fill_defaults_from_slug(self) -> "Settings":
         if not self.RABBITMQ_QUEUE:
