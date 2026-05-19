@@ -6,29 +6,36 @@ import google.generativeai as genai
 
 from app.client_data import load_client_data
 from app.config import settings
-from app.prompt import get_system_prompt, resolve_niche
-from app.services.redis_service import get_chat_history, append_chat_history
+from app.prompt import detect_niche_from_message, get_system_prompt, resolve_niche
+from app.services.redis_service import (
+    append_chat_history,
+    get_chat_history,
+    get_lead,
+    update_lead,
+)
 
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
 _WEEK = [
-    "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
-    "sexta-feira", "sábado", "domingo",
+    "segunda-feira",
+    "terca-feira",
+    "quarta-feira",
+    "quinta-feira",
+    "sexta-feira",
+    "sabado",
+    "domingo",
 ]
 
 
 def _temporal_prefix() -> str:
-    """Bloco de contexto temporal injetado na user_message a cada turno.
-
-    O system_instruction também recebe a data, mas o modelo às vezes ignora —
-    repetir no próprio turno do usuário força a leitura imediata.
-    """
+    """Bloco de contexto temporal injetado na user_message a cada turno."""
     now = datetime.now(_SP_TZ)
     tomorrow = now + timedelta(days=1)
     return (
-        f"[CONTEXTO DO SISTEMA — não responda sobre isto, apenas use como referência: "
-        f"agora são {now.strftime('%H:%M')} de {_WEEK[now.weekday()]}, {now.strftime('%d/%m/%Y')}. "
-        f"Amanhã é {_WEEK[tomorrow.weekday()]}, {tomorrow.strftime('%d/%m/%Y')}.]\n\n"
+        f"[CONTEXTO DO SISTEMA - nao responda sobre isto, apenas use como referencia: "
+        f"agora sao {now.strftime('%H:%M')} de {_WEEK[now.weekday()]}, {now.strftime('%d/%m/%Y')}. "
+        f"Amanha e {_WEEK[tomorrow.weekday()]}, {tomorrow.strftime('%d/%m/%Y')}.]\n\n"
     )
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +53,8 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
     _ensure_configured()
 
     history = await get_chat_history(phone)
+    lead = await get_lead(phone) or {}
+    locked_niche = lead.get("nicho") or None
 
     first_user_text = next(
         (
@@ -55,7 +64,11 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
         ),
         user_message,
     )
-    niche = resolve_niche(first_user_text)
+    detected_niche = detect_niche_from_message(first_user_text)
+    niche = resolve_niche(first_user_text, locked_niche=locked_niche)
+
+    if not locked_niche and detected_niche:
+        await update_lead(phone, nicho=detected_niche)
 
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash",
@@ -101,7 +114,6 @@ async def generate_summary(phone: str) -> str:
     if not history:
         return ""
 
-    # Monta texto das ultimas 10 mensagens para resumir
     lines = []
     for entry in history[-10:]:
         role = "Atendente" if entry.get("role") == "model" else "Lead"
@@ -129,11 +141,7 @@ async def generate_summary(phone: str) -> str:
 
 
 async def generate_handoff_summary(phone: str) -> str:
-    """Gera um resumo organizado das respostas do lead para o alerta de handoff.
-
-    Diferente de `generate_summary` (1-2 frases), aqui listamos ponto a ponto
-    o que o lead informou, para o consultor humano bater o olho e agir.
-    """
+    """Gera um resumo organizado das respostas do lead para o alerta de handoff."""
     _ensure_configured()
     history = await get_chat_history(phone)
     if not history:

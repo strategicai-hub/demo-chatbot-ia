@@ -1,15 +1,16 @@
 """
 Gera o SYSTEM_PROMPT a partir do template Jinja2 + dados de client*.yaml.
 
-Cadeia de resolucao do nicho ativo (1a fonte que retornar valor ganha):
-  1. Override no Redis (`{PROJECT_SLUG}:active_niche`) — setado via comando
+Cadeia de resolucao do nicho ativo:
+  1. Nicho travado no lead/formulario, quando informado pelo codigo chamador.
+  2. Override no Redis (`{PROJECT_SLUG}:active_niche`) - setado via comando
      /nicho: <nome> enviado por um numero em ADMIN_PHONES.
-  2. Env var `ACTIVE_NICHE` configurada na stack (Portainer).
-  3. Deteccao por palavra-chave na 1a mensagem do lead.
-  4. Campo `niche` do client.yaml (ou DEFAULT_NICHE como ultima rede).
+  3. Env var `ACTIVE_NICHE` configurada na stack (Portainer).
+  4. Deteccao por palavra-chave na primeira mensagem do lead.
+  5. Campo `niche` do client.yaml (ou DEFAULT_NICHE como ultima rede).
 
-Para cada nicho, o prompt fica em `app/prompts/{niche}.j2` e os dados do negocio
-podem ficar em `client.{niche}.yaml` (com fallback para `client.yaml`).
+Para cada nicho, o prompt fica em `app/prompts/{niche}.j2` e os dados do
+negocio podem ficar em `client.{niche}.yaml` (com fallback para `client.yaml`).
 
 `assistant.greeting` e injetado dinamicamente em cada render com base no horario
 atual de Sao Paulo ("bom dia" / "boa tarde" / "boa noite"), ignorando o valor
@@ -17,6 +18,7 @@ presente no client.yaml.
 """
 from datetime import datetime
 from pathlib import Path
+import unicodedata
 from zoneinfo import ZoneInfo
 
 import redis as redis_sync
@@ -27,14 +29,25 @@ from app.config import settings
 from app.services import sai_sync
 
 DEFAULT_NICHE = "capital_de_giro"
-ALLOWED_NICHES = {"petshop", "capital_de_giro", "consorcio", "material_construcao"}
+ALLOWED_NICHES = {
+    "petshop",
+    "capital_de_giro",
+    "consorcio",
+    "material_construcao",
+    "lancamento_livro",
+}
 NICHE_KEY = f"{settings.PROJECT_SLUG}:active_niche"
 
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
-_WEEKDAYS_PT = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+_WEEKDAYS_PT = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
 _WEEKDAYS_PT_FULL = [
-    "Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira",
-    "Quinta-feira", "Sexta-feira", "Sábado",
+    "Domingo",
+    "Segunda-feira",
+    "Terca-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sabado",
 ]  # indice = weekday do snapshot (0=Domingo .. 6=Sabado, igual ao painel SAI)
 
 _redis_client: redis_sync.Redis | None = None
@@ -56,6 +69,11 @@ def _get_redis() -> redis_sync.Redis | None:
     return _redis_client
 
 
+def _fold_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFD", text.lower())
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+
+
 def _compute_time_greeting() -> str:
     hour = datetime.now(_SP_TZ).hour
     if 5 <= hour < 12:
@@ -70,52 +88,86 @@ def _compute_today_weekday() -> str:
 
 
 def _compute_time_context_block() -> str:
-    """Bloco autoritativo de data/hora atual em São Paulo.
+    """Bloco autoritativo de data/hora atual em Sao Paulo.
 
-    Injetado no FINAL do prompt (modelos seguem melhor instruções no final).
-    Inclui hoje + ontem + amanhã já computados para evitar erros de cálculo.
+    Injetado no final do prompt para reduzir erros do modelo em datas relativas.
+    Inclui hoje + ontem + amanha ja computados.
     """
     from datetime import timedelta
+
     week = [
-        "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
-        "sexta-feira", "sábado", "domingo",
+        "segunda-feira",
+        "terca-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sabado",
+        "domingo",
     ]
     now = datetime.now(_SP_TZ)
     yesterday = now - timedelta(days=1)
     tomorrow = now + timedelta(days=1)
     return (
-        "\n\n---\n\n## ⏰ DATA E HORA ATUAIS — REGRA ABSOLUTA\n"
-        "Estas informações são AUTORITATIVAS. Substituem qualquer suposição sua. "
-        "Use-as sempre que for falar de dia, data, hoje, ontem, amanhã, semana ou horário:\n\n"
+        "\n\n---\n\n## DATA E HORA ATUAIS - REGRA ABSOLUTA\n"
+        "Estas informacoes sao AUTORITATIVAS. Substituem qualquer suposicao sua. "
+        "Use-as sempre que for falar de dia, data, hoje, ontem, amanha, semana ou horario:\n\n"
         f"- AGORA (America/Sao_Paulo): {now.strftime('%d/%m/%Y %H:%M')}\n"
-        f"- HOJE é {week[now.weekday()]} ({now.strftime('%d/%m/%Y')}).\n"
+        f"- HOJE e {week[now.weekday()]} ({now.strftime('%d/%m/%Y')}).\n"
         f"- ONTEM foi {week[yesterday.weekday()]} ({yesterday.strftime('%d/%m/%Y')}).\n"
-        f"- AMANHÃ será {week[tomorrow.weekday()]} ({tomorrow.strftime('%d/%m/%Y')}).\n\n"
-        "PROIBIDO inventar outro dia da semana. Se for mencionar \"amanhã\", "
-        f"obrigatoriamente é {week[tomorrow.weekday()]}.\n"
+        f"- AMANHA sera {week[tomorrow.weekday()]} ({tomorrow.strftime('%d/%m/%Y')}).\n\n"
+        "PROIBIDO inventar outro dia da semana. Se for mencionar \"amanha\", "
+        f"obrigatoriamente e {week[tomorrow.weekday()]}.\n"
     )
 
 
 def detect_niche_from_message(text: str) -> str | None:
-    """Identifica o nicho a partir do conteudo da mensagem inicial do lead.
-
-    Retorna o nome do nicho ou None se nao for possivel identificar.
-    """
+    """Identifica o nicho a partir do conteudo da mensagem inicial do lead."""
     if not text:
         return None
-    t = text.lower()
+    t = _fold_text(text)
+
+    if any(
+        k in t
+        for k in (
+            "comunicacao humanizada",
+            "neurocomunicacao",
+            "lancamento do livro",
+            "livro comunicacao",
+            "livro comunicacao humanizada",
+            "evento comunicacao",
+            "ikigai",
+            "eduardo almeida",
+        )
+    ):
+        return "lancamento_livro"
+
     if any(k in t for k in ("banho", "tosa", "pet shop", "petshop", "gato", "gata", "cachorro", "cadela")):
         return "petshop"
     if "capital de giro" in t:
         return "capital_de_giro"
-    if "consorcio" in t or "consórcio" in t:
+    if "consorcio" in t:
         return "consorcio"
-    if any(k in t for k in (
-        "cimento", "areia", "brita", "tijolo", "bloco", "argamassa",
-        "material de construção", "material de construcao", "construção", "construcao",
-        "tinta", "massa corrida", "cano pvc", "tubo pvc", "disjuntor", "fio elétrico",
-        "fio eletrico", "reforma", "obra",
-    )):
+    if any(
+        k in t
+        for k in (
+            "cimento",
+            "areia",
+            "brita",
+            "tijolo",
+            "bloco",
+            "argamassa",
+            "material de construcao",
+            "construcao",
+            "tinta",
+            "massa corrida",
+            "cano pvc",
+            "tubo pvc",
+            "disjuntor",
+            "fio eletrico",
+            "reforma",
+            "obra",
+        )
+    ):
         return "material_construcao"
     return None
 
@@ -134,12 +186,11 @@ def get_active_niche_override() -> str | None:
     return None
 
 
-def resolve_niche(message_text: str | None = None) -> str:
-    """Aplica a cadeia de overrides e retorna o nicho a ser usado agora.
+def resolve_niche(message_text: str | None = None, locked_niche: str | None = None) -> str:
+    """Aplica a cadeia de overrides e retorna o nicho a ser usado agora."""
+    if locked_niche and locked_niche in ALLOWED_NICHES:
+        return locked_niche
 
-    Ordem: Redis override -> env var ACTIVE_NICHE -> deteccao por mensagem ->
-    client.yaml -> DEFAULT_NICHE.
-    """
     override = get_active_niche_override()
     if override:
         return override
@@ -163,7 +214,7 @@ def _format_business_hours(hours: list[dict]) -> str:
         if not isinstance(wd, int) or not 0 <= wd < 7 or not windows:
             continue
         ranges = [
-            f"{w['start']}–{w['end']}"
+            f"{w['start']}-{w['end']}"
             for w in windows
             if isinstance(w, dict) and w.get("start") and w.get("end")
         ]
@@ -171,7 +222,7 @@ def _format_business_hours(hours: list[dict]) -> str:
             lines.append(f"- {_WEEKDAYS_PT_FULL[wd]}: {', '.join(ranges)}")
     if not lines:
         return ""
-    return "Horário de funcionamento:\n" + "\n".join(lines)
+    return "Horario de funcionamento:\n" + "\n".join(lines)
 
 
 def _format_products(products: list[dict]) -> str:
@@ -186,13 +237,13 @@ def _format_products(products: list[dict]) -> str:
         else:
             price_str = "consultar"
         desc = (p.get("description") or "").strip()
-        line = f"- {name} — {price_str}"
+        line = f"- {name} - {price_str}"
         if desc:
             line += f" ({desc})"
         items.append(line)
     if not items:
         return ""
-    return "Produtos e serviços:\n" + "\n".join(items)
+    return "Produtos e servicos:\n" + "\n".join(items)
 
 
 def _apply_sai_snapshot(data: dict, assistant: dict) -> tuple[dict, str]:
@@ -221,12 +272,12 @@ def build_prompt(niche: str | None = None) -> str:
         loader=FileSystemLoader(str(prompts_dir)),
         keep_trailing_newline=True,
     )
-    resolved_niche = (niche or resolve_niche()).strip()
+    resolved_niche = (niche or "").strip() or resolve_niche()
     template_file = f"{resolved_niche}.j2"
     if not (prompts_dir / template_file).exists():
         raise FileNotFoundError(
-            f"Prompt do nicho '{resolved_niche}' não encontrado em {prompts_dir / template_file}. "
-            f"Nichos disponíveis: {[p.stem for p in prompts_dir.glob('*.j2')]}"
+            f"Prompt do nicho '{resolved_niche}' nao encontrado em {prompts_dir / template_file}. "
+            f"Nichos disponiveis: {[p.stem for p in prompts_dir.glob('*.j2')]}"
         )
 
     data = dict(load_client_data(niche=resolved_niche))
@@ -243,5 +294,5 @@ def build_prompt(niche: str | None = None) -> str:
 
 
 def get_system_prompt(niche: str | None = None) -> str:
-    """Renderiza o prompt sob demanda (greeting reflete o horário atual)."""
+    """Renderiza o prompt sob demanda (greeting reflete o horario atual)."""
     return build_prompt(niche=niche)

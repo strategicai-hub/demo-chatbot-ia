@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.services import rabbitmq, sai_sync
+from app.services import event_reminders, rabbitmq, sai_sync
 from app.webhook import router
+from app.api import public_router as public_api_router
 from app.api import router as api_router
 from app.api_sai import router as sai_router
 
@@ -20,14 +21,16 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     sync_task = asyncio.create_task(sai_sync.start_polling())
+    reminder_task = asyncio.create_task(event_reminders.start_loop())
     try:
         yield
     finally:
-        sync_task.cancel()
-        try:
-            await sync_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        for task in (sync_task, reminder_task):
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
         await rabbitmq.close()
 
 
@@ -41,6 +44,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(public_api_router)
 app.include_router(api_router)
 # Traefik forwards /demo-chatbot-ia/... sem strip — montamos sai_router sob
 # WEBHOOK_PATH para que POST {baseUrl}/sai/bind e /sai/config cheguem aqui.

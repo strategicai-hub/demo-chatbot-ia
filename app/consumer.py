@@ -14,6 +14,7 @@ import redis as redis_sync
 from app.config import settings
 from app.images import MEDIA_DICT
 from app.prompt import ALLOWED_NICHES, NICHE_KEY
+from app.services import event_reminders
 from app.services import redis_service as rds
 from app.services import uazapi
 from app.services.gemini import chat as gemini_chat, transcribe_audio, analyze_image, generate_summary, generate_handoff_summary
@@ -269,6 +270,19 @@ async def _process_message(msg: dict) -> None:
 
     if push_name and lead.get("name", "") != push_name:
         await rds.update_lead(phone, name=push_name)
+        lead["name"] = push_name
+
+    if msg_type in TEXT_TYPES and msg_text:
+        confirmed = await event_reminders.update_confirmation_from_message(phone, lead, msg_text)
+        if confirmed:
+            lead["confirmado"] = confirmed
+        survey = await event_reminders.update_post_event_survey_from_message(phone, lead, msg_text)
+        if survey:
+            score, learning = survey
+            if score is not None:
+                lead["survey_score"] = score
+            if learning:
+                lead["survey_learning"] = learning
 
     # E) Identificacao do tipo de mensagem
     media_url = msg.get("media_url", "")

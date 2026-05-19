@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     DEBOUNCE_SECONDS: int = 30
     BLOCK_TTL_SECONDS: int | None = None  # deprecated: TTL agora é calculado dinamicamente até amanhã 08:00 SP
 
+    # Evento / formulários públicos
+    # Se setado, endpoints públicos de inscrição exigem header x-form-secret.
+    FORM_WEBHOOK_SECRET: str = ""
+    EVENT_REMINDERS_ENABLED: bool = True
+    EVENT_REMINDER_POLL_SECONDS: int = 60
+
     # Alerta de atendimento humano
     # Formato: somente digitos, com DDI (ex: 5511999990000)
     ALERT_PHONE: str = ""

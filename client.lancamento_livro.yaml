@@ -1,0 +1,89 @@
+# Dados do nicho lancamento_livro - usado pelo prompt
+# app/prompts/lancamento_livro.j2
+
+niche: lancamento_livro
+
+business:
+  name: "Ikigai Brasil"
+  type: "evento de lançamento de livro"
+  address: "São Paulo - SP"
+
+assistant:
+  name: "Mya"
+  greeting: ""
+
+event:
+  id: "comunicacao-humanizada-2026-06-05"
+  name: "Lançamento do livro Comunicação Humanizada"
+  book_title: "Comunicação Humanizada"
+  author: "Eduardo Almeida"
+  date: "2026-06-05"
+  weekday: "sexta-feira"
+  start_time: "18:30"
+  city: "São Paulo"
+  format: "presencial e online"
+  price: "gratuito"
+  landing_page: "https://ch.ikigaibrasil.com/"
+  access_link: ""
+  arrival_instructions: "Evento em São Paulo. As orientações finais de acesso ou chegada serão enviadas pela equipe."
+  first_message: "Olá! Sou a Mya, assistente virtual do lançamento do livro Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
+  second_message: "Me conte mais sobre você. O que te motivou a se inscrever no nosso evento?"
+
+book_offer:
+  enabled: true
+  product_name: "livro físico Comunicação Humanizada"
+  purchase_url: ""
+  dedication_author: "Eduardo Almeida"
+
+communication_humanizada:
+  what_is: >
+    A Comunicação Humanizada, também chamada de Neurocomunicação, não é apenas
+    uma técnica de oratória ou sobre falar bonito. É um campo de estudo que une
+    neurociência, psicologia, sociologia, antropologia e semiótica para entender
+    como o cérebro humano escuta, interpreta, reage e decide diante de uma
+    mensagem.
+  objectives:
+    - "Restaurar a conexão humana, com respeito, escuta e empatia mesmo quando há diferenças."
+    - "Reduzir conflitos e transformar conversas difíceis em pontes de entendimento."
+    - "Promover diálogo real, saindo do encontro de monólogos para uma troca com crescimento mútuo."
+    - "Melhorar ambientes familiares, profissionais e sociais, com mais saúde mental, segurança psicológica e relações saudáveis."
+
+reminders:
+  day_before:
+    date: "2026-06-04"
+    start: "12:00"
+    end: "18:00"
+    message: >
+      Olá, {name}! Passando para lembrar que amanhã é o lançamento do livro
+      Comunicação Humanizada. Será um encontro gratuito, presencial e online,
+      às 18:30. Estamos felizes em ter você com a gente.
+  confirmation:
+    date: "2026-06-05"
+    start: "08:00"
+    end: "12:00"
+    message: >
+      Olá, {name}! Hoje é o lançamento do livro Comunicação Humanizada, às
+      18:30. Posso confirmar sua presença?
+  final:
+    date: "2026-06-05"
+    start: "16:00"
+    end: "17:30"
+    message: >
+      Falta pouco para começarmos a transformar a forma como nos conectamos!
+      O encontro começa às 18:30. {access_or_arrival}
+  post_event_survey:
+    date: "2026-06-06"
+    start: "09:00"
+    end: "11:30"
+    message: >
+      Olá, {name}. Bom dia. Esperamos que a experiência de ontem tenha sido
+      incrível para você.
+
+      Para nos ajudar a melhorar o movimento Comunicação Humanizada, você
+      poderia responder a duas perguntinhas rápidas?
+
+      1) De 0 a 10, o quanto o evento mudou sua percepção sobre como nos
+      comunicamos?
+      2) Qual foi o seu maior aprendizado?
+
+media: {}

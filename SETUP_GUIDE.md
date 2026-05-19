@@ -70,7 +70,8 @@ Abra o arquivo `client.yaml` no novo repositorio e preencha **todos** os dados d
 
 **`niche`** - Nicho do negocio (define o prompt usado)
 ```yaml
-# Nichos disponiveis: capital_de_giro, consorcio.
+# Nichos disponiveis: capital_de_giro, consorcio, material_construcao,
+# petshop, lancamento_livro.
 # Tambem detectado dinamicamente pela mensagem inicial do lead.
 niche: "capital_de_giro"
 ```
