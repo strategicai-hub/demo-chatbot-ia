@@ -24,6 +24,8 @@ def test_builds_lancamento_livro_prompt(monkeypatch):
     assert "assistente virtual do Lançamento do livro Comunicação Humanizada" in rendered
     assert "mensagens curtas" in rendered.lower()
     assert "dedicatória exclusiva" in rendered
+    assert "Tópicos abordados no livro" in rendered
+    assert "Vou te enviar lembretes mais próximo do dia do evento" in rendered
 
 
 def test_presence_confirmation_parser():
@@ -124,5 +126,5 @@ async def test_form_subscription_locks_event_niche_and_sends_initial_messages(mo
     assert updates[0][1]["confirmado"] == ""
     assert len(sent) == 2
     assert sent[0][1].startswith("Olá! Sou a Mya")
-    assert "motivou" in sent[1][1]
+    assert sent[1][1] == "Queremos te conhecer melhor. O que te motivou a se inscrever no nosso evento?"
     assert [item[1] for item in history] == ["model", "model"]

@@ -17,7 +17,11 @@ async def test_empty_whitelist_allows_any_phone(monkeypatch):
         nonlocal called
         called = True
 
+    async def fake_is_bot_outbound(phone):
+        return False
+
     monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
 
     await consumer._process_message({
         "phone": "5511999990000",
@@ -61,7 +65,11 @@ async def test_whitelist_allows_listed_phone(monkeypatch):
         nonlocal called
         called = True
 
+    async def fake_is_bot_outbound(phone):
+        return False
+
     monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
 
     await consumer._process_message({
         "phone": "5511999990000",
@@ -72,6 +80,30 @@ async def test_whitelist_allows_listed_phone(monkeypatch):
     assert called, "Phone listado deveria passar"
 
     settings.ALLOWED_PHONES = ""
+
+
+@pytest.mark.asyncio
+async def test_from_me_recent_bot_outbound_does_not_block(monkeypatch):
+    settings.ALLOWED_PHONES = ""
+    called = False
+
+    async def fake_set_block(phone):
+        nonlocal called
+        called = True
+
+    async def fake_is_bot_outbound(phone):
+        return True
+
+    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
+
+    await consumer._process_message({
+        "phone": "5511999990000",
+        "msg_type": "Conversation",
+        "from_me": True,
+        "chat_id": "5511999990000@c.us",
+    })
+    assert not called, "Eco de mensagem automatica do bot nao deveria bloquear o contato"
 
 
 def test_allowed_phones_set_trims_whitespace():

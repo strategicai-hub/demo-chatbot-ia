@@ -37,6 +37,18 @@ async def is_blocked(phone: str) -> bool:
     return await r.exists(keys.block_key(phone)) == 1
 
 
+# --------------- eco de mensagens enviadas pelo bot ---------------
+
+async def mark_bot_outbound(phone: str, ttl: int = 300) -> None:
+    r = await get_redis()
+    await r.set(keys.bot_outbound_key(phone), "1", ex=ttl)
+
+
+async def is_bot_outbound(phone: str) -> bool:
+    r = await get_redis()
+    return await r.exists(keys.bot_outbound_key(phone)) == 1
+
+
 # --------------- buffer de mensagens (debounce) ---------------
 
 async def push_buffer(phone: str, text: str) -> int:

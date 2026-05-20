@@ -29,6 +29,10 @@ def block_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:block"
 
 
+def bot_outbound_key(phone: str) -> str:
+    return f"{_phone_ns(phone)}:bot_outbound"
+
+
 def alert_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:alert"
 

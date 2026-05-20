@@ -191,6 +191,9 @@ async def _process_message(msg: dict) -> None:
 
     # B) Mensagem propria -> bloqueia agente por 1h
     if from_me:
+        if await rds.is_bot_outbound(phone):
+            logger.info("Eco de mensagem automatica para %s ignorado sem bloquear agente", chat_id or phone)
+            return
         await rds.set_block(phone)
         logger.info("Humano assumiu chat %s - agente bloqueado por 1h", chat_id)
         return

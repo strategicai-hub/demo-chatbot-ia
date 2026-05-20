@@ -61,6 +61,22 @@ def test_queues_text_message(client_and_published):
     assert msg["msg_type"] == "Conversation"
 
 
+def test_from_me_uses_chatid_as_contact_phone(client_and_published):
+    client, pub = client_and_published
+    r = client.post("/testslug", json={
+        "message": {
+            "fromMe": True,
+            "sender_pn": "5511952877576@c.us",
+            "chatid": "554191813736@c.us",
+            "text": "mensagem enviada pela instancia",
+        }
+    })
+    assert r.status_code == 200
+    assert r.json()["status"] == "queued"
+    assert pub[0]["from_me"] is True
+    assert pub[0]["phone"] == "554191813736"
+
+
 def test_queues_audio_message(client_and_published):
     client, pub = client_and_published
     r = client.post("/testslug", json={

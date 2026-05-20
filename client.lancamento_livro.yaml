@@ -27,7 +27,7 @@ event:
   access_link: ""
   arrival_instructions: "Evento em São Paulo. As orientações finais de acesso ou chegada serão enviadas pela equipe."
   first_message: "Olá! Sou a Mya, assistente virtual do lançamento do livro Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
-  second_message: "Me conte mais sobre você. O que te motivou a se inscrever no nosso evento?"
+  second_message: "Queremos te conhecer melhor. O que te motivou a se inscrever no nosso evento?"
 
 book_offer:
   enabled: true
@@ -47,6 +47,11 @@ communication_humanizada:
     - "Reduzir conflitos e transformar conversas difíceis em pontes de entendimento."
     - "Promover diálogo real, saindo do encontro de monólogos para uma troca com crescimento mútuo."
     - "Melhorar ambientes familiares, profissionais e sociais, com mais saúde mental, segurança psicológica e relações saudáveis."
+  book_topics:
+    - "Como o cérebro escuta, interpreta, reage e decide diante de uma mensagem."
+    - "Escuta, empatia e respeito como base para restaurar conexões humanas."
+    - "Caminhos para reduzir conflitos e transformar conversas difíceis em pontes."
+    - "Segurança psicológica e relações mais saudáveis em empresas, famílias e sociedade."
 
 reminders:
   day_before:
