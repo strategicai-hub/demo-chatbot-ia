@@ -130,6 +130,7 @@ def _is_known_automated_from_me_text(text: str) -> bool:
         for item in event_reminders.registration_messages()
         if item
     }
+    known_texts.add(_normalize_from_me_text("Conversa reiniciada."))
     known_texts.add(_normalize_from_me_text(
         "Olá! Sou, sou a Mya, assistente virtual do lançamento do livro "
         "Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
@@ -270,8 +271,11 @@ async def _process_message(msg: dict) -> None:
 
     # C) Verifica bloqueio ativo
     if await rds.is_blocked(phone):
-        logger.info("Agente bloqueado para %s - ignorando", chat_id)
-        return
+        if await rds.clear_stale_legacy_block(phone):
+            logger.info("Bloqueio legado vazio removido para %s", phone)
+        else:
+            logger.info("Agente bloqueado para %s - ignorando", chat_id)
+            return
 
     # D) Filtra grupos
     if _is_group(chat_id):
@@ -460,7 +464,7 @@ async def _process_message(msg: dict) -> None:
 
     # K) Pos-envio: finalizacao + resumo
     if finalizado:
-        await rds.set_block(phone)
+        await rds.set_block(phone, reason="finalizado")
         await rds.update_lead(phone, status_conversa="Finalizado")
         log(_ok(f"[{phone}] Conversa marcada como finalizada"))
 
