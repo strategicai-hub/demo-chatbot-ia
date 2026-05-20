@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -44,14 +45,31 @@ async def delete_block(phone: str) -> None:
 
 # --------------- eco de mensagens enviadas pelo bot ---------------
 
-async def mark_bot_outbound(phone: str, ttl: int = 300) -> None:
+def _normalize_outbound_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+async def mark_bot_outbound(phone: str, text: str = "", ttl: int = 300) -> None:
     r = await get_redis()
     await r.set(keys.bot_outbound_key(phone), "1", ex=ttl)
+    normalized = _normalize_outbound_text(text)
+    if normalized:
+        await r.rpush(keys.bot_outbound_texts_key(phone), normalized)
+        await r.ltrim(keys.bot_outbound_texts_key(phone), -20, -1)
+        await r.expire(keys.bot_outbound_texts_key(phone), ttl)
 
 
-async def is_bot_outbound(phone: str) -> bool:
+async def is_bot_outbound(phone: str, text: str = "") -> bool:
     r = await get_redis()
-    return await r.exists(keys.bot_outbound_key(phone)) == 1
+    normalized = _normalize_outbound_text(text)
+    if not normalized:
+        return await r.exists(keys.bot_outbound_key(phone)) == 1
+
+    try:
+        recent_texts = await r.lrange(keys.bot_outbound_texts_key(phone), 0, -1)
+    except redis.ResponseError:
+        recent_texts = []
+    return normalized in {_normalize_outbound_text(item) for item in recent_texts}
 
 
 # --------------- buffer de mensagens (debounce) ---------------

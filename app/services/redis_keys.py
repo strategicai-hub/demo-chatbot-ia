@@ -33,6 +33,10 @@ def bot_outbound_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:bot_outbound"
 
 
+def bot_outbound_texts_key(phone: str) -> str:
+    return f"{_phone_ns(phone)}:bot_outbound:texts"
+
+
 def alert_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:alert"
 

@@ -8,44 +8,24 @@ from app import consumer
 from app.config import settings
 
 
-@pytest.mark.asyncio
-async def test_from_me_does_not_block_by_default(monkeypatch):
-    settings.ALLOWED_PHONES = ""
-    settings.BLOCK_ON_FROM_ME = False
-    called = False
-
-    async def fake_set_block(phone):
-        nonlocal called
-        called = True
-
-    async def fake_is_bot_outbound(phone):
-        return False
-
-    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
-    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
-
-    await consumer._process_message({
-        "phone": "5511999990000",
-        "msg_type": "Conversation",
-        "from_me": True,
-        "chat_id": "5511999990000@c.us",
-    })
-    assert not called, "fromMe nao deve bloquear por padrao"
-    settings.ALLOWED_PHONES = ""
-    settings.BLOCK_ON_FROM_ME = False
-
-
-@pytest.mark.asyncio
-async def test_from_me_blocks_when_human_takeover_enabled(monkeypatch):
+@pytest.fixture(autouse=True)
+def reset_phone_settings():
     settings.ALLOWED_PHONES = ""
     settings.BLOCK_ON_FROM_ME = True
-    called = False
+    yield
+    settings.ALLOWED_PHONES = ""
+    settings.BLOCK_ON_FROM_ME = True
 
-    async def fake_set_block(phone):
-        nonlocal called
-        called = True
 
-    async def fake_is_bot_outbound(phone):
+@pytest.mark.asyncio
+async def test_from_me_blocks_by_default(monkeypatch):
+    called = {}
+
+    async def fake_set_block(phone, ttl=None):
+        called["phone"] = phone
+        called["ttl"] = ttl
+
+    async def fake_is_bot_outbound(phone, text=""):
         return False
 
     monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
@@ -54,11 +34,38 @@ async def test_from_me_blocks_when_human_takeover_enabled(monkeypatch):
     await consumer._process_message({
         "phone": "5511999990000",
         "msg_type": "Conversation",
+        "msg": "mensagem humana",
         "from_me": True,
         "chat_id": "5511999990000@c.us",
     })
-    assert called, "fromMe so deve bloquear quando BLOCK_ON_FROM_ME=true"
+
+    assert called == {"phone": "5511999990000", "ttl": 3600}
+
+
+@pytest.mark.asyncio
+async def test_from_me_can_be_disabled_by_config(monkeypatch):
     settings.BLOCK_ON_FROM_ME = False
+    called = False
+
+    async def fake_set_block(phone, ttl=None):
+        nonlocal called
+        called = True
+
+    async def fake_is_bot_outbound(phone, text=""):
+        return False
+
+    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
+
+    await consumer._process_message({
+        "phone": "5511999990000",
+        "msg_type": "Conversation",
+        "msg": "mensagem humana",
+        "from_me": True,
+        "chat_id": "5511999990000@c.us",
+    })
+
+    assert not called
 
 
 @pytest.mark.asyncio
@@ -66,7 +73,7 @@ async def test_whitelist_blocks_non_listed_phone(monkeypatch):
     settings.ALLOWED_PHONES = "5511888880000"
     called = False
 
-    async def fake_set_block(phone):
+    async def fake_set_block(phone, ttl=None):
         nonlocal called
         called = True
 
@@ -81,21 +88,17 @@ async def test_whitelist_blocks_non_listed_phone(monkeypatch):
     })
     assert not called, "Phone fora da whitelist deveria ter sido ignorado antes"
 
-    # Reset
-    settings.ALLOWED_PHONES = ""
-
 
 @pytest.mark.asyncio
 async def test_whitelist_allows_listed_phone(monkeypatch):
     settings.ALLOWED_PHONES = "5511888880000,5511999990000"
-    settings.BLOCK_ON_FROM_ME = True
     called = False
 
-    async def fake_set_block(phone):
+    async def fake_set_block(phone, ttl=None):
         nonlocal called
         called = True
 
-    async def fake_is_bot_outbound(phone):
+    async def fake_is_bot_outbound(phone, text=""):
         return False
 
     monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
@@ -104,26 +107,23 @@ async def test_whitelist_allows_listed_phone(monkeypatch):
     await consumer._process_message({
         "phone": "5511999990000",
         "msg_type": "Conversation",
+        "msg": "mensagem humana",
         "from_me": True,
         "chat_id": "5511999990000@c.us",
     })
     assert called, "Phone listado deveria passar"
 
-    settings.ALLOWED_PHONES = ""
-    settings.BLOCK_ON_FROM_ME = False
-
 
 @pytest.mark.asyncio
 async def test_from_me_recent_bot_outbound_does_not_block(monkeypatch):
-    settings.ALLOWED_PHONES = ""
     called = False
 
-    async def fake_set_block(phone):
+    async def fake_set_block(phone, ttl=None):
         nonlocal called
         called = True
 
-    async def fake_is_bot_outbound(phone):
-        return True
+    async def fake_is_bot_outbound(phone, text=""):
+        return text == "mensagem enviada pelo bot"
 
     monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
     monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
@@ -131,6 +131,7 @@ async def test_from_me_recent_bot_outbound_does_not_block(monkeypatch):
     await consumer._process_message({
         "phone": "5511999990000",
         "msg_type": "Conversation",
+        "msg": "mensagem enviada pelo bot",
         "from_me": True,
         "chat_id": "5511999990000@c.us",
     })
@@ -138,9 +139,60 @@ async def test_from_me_recent_bot_outbound_does_not_block(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_from_me_form_greeting_does_not_block(monkeypatch):
+    called = False
+
+    async def fake_set_block(phone, ttl=None):
+        nonlocal called
+        called = True
+
+    async def fake_is_bot_outbound(phone, text=""):
+        return False
+
+    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
+
+    await consumer._process_message({
+        "phone": "5511999990000",
+        "msg_type": "Conversation",
+        "msg": (
+            "Olá! Sou, sou a Mya, assistente virtual do lançamento do livro "
+            "Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
+        ),
+        "from_me": True,
+        "chat_id": "5511999990000@c.us",
+    })
+
+    assert not called, "Mensagem inicial do formulario nao deveria bloquear"
+
+
+@pytest.mark.asyncio
+async def test_from_me_unmatched_text_blocks_even_after_other_bot_outbound(monkeypatch):
+    called = False
+
+    async def fake_set_block(phone, ttl=None):
+        nonlocal called
+        called = True
+
+    async def fake_is_bot_outbound(phone, text=""):
+        return text == "texto exato enviado pelo bot"
+
+    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
+
+    await consumer._process_message({
+        "phone": "5511999990000",
+        "msg_type": "Conversation",
+        "msg": "texto digitado por atendente humano",
+        "from_me": True,
+        "chat_id": "5511999990000@c.us",
+    })
+
+    assert called, "fromMe humano deve bloquear mesmo com outros envios recentes do bot"
+
+
+@pytest.mark.asyncio
 async def test_reset_clears_block_before_block_check(monkeypatch):
-    settings.ALLOWED_PHONES = ""
-    settings.BLOCK_ON_FROM_ME = False
     calls = []
 
     async def fake_clear_chat_history(phone):
@@ -185,7 +237,6 @@ async def test_reset_clears_block_before_block_check(monkeypatch):
 def test_allowed_phones_set_trims_whitespace():
     settings.ALLOWED_PHONES = " 5511999990000 , 5511888880000 ,"
     assert settings.allowed_phones_set == {"5511999990000", "5511888880000"}
-    settings.ALLOWED_PHONES = ""
 
 
 def test_allowed_phones_set_empty_returns_empty_set():

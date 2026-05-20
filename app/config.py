@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     WEBHOOK_PATH: str = ""
     DEBOUNCE_SECONDS: int = 30
     BLOCK_TTL_SECONDS: int | None = None  # deprecated: TTL agora é calculado dinamicamente até amanhã 08:00 SP
-    BLOCK_ON_FROM_ME: bool = False
+    BLOCK_ON_FROM_ME: bool = True
 
     # Evento / formulários públicos
     # Se setado, endpoints públicos de inscrição exigem header x-form-secret.

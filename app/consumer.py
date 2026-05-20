@@ -109,6 +109,27 @@ def _is_group(chat_id: str) -> bool:
     return "@g.us" in chat_id
 
 
+def _normalize_from_me_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+def _is_known_automated_from_me_text(text: str) -> bool:
+    normalized = _normalize_from_me_text(text)
+    if not normalized:
+        return False
+
+    known_texts = {
+        _normalize_from_me_text(item)
+        for item in event_reminders.registration_messages()
+        if item
+    }
+    known_texts.add(_normalize_from_me_text(
+        "Olá! Sou, sou a Mya, assistente virtual do lançamento do livro "
+        "Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
+    ))
+    return normalized in known_texts
+
+
 def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
     """
     Parseia a resposta da IA:
@@ -204,16 +225,15 @@ async def _process_message(msg: dict) -> None:
         _save_session_log(phone)
         return
 
-    # B) Mensagem propria. Por padrao, nao bloqueia: eventos fromMe da UAZAPI
-    # podem ser ecos/automacoes e nao uma intervencao humana real.
+    # B) Mensagem propria. Bloqueia atendimento humano, exceto ecos do bot/form.
     if from_me:
-        if await rds.is_bot_outbound(phone):
-            logger.info("Eco de mensagem automatica para %s ignorado sem bloquear agente", chat_id or phone)
+        if await rds.is_bot_outbound(phone, msg_text) or _is_known_automated_from_me_text(msg_text):
+            logger.info("Mensagem automatica fromMe para %s ignorada sem bloquear agente", chat_id or phone)
             return
         if not settings.BLOCK_ON_FROM_ME:
             logger.info("Mensagem fromMe para %s ignorada sem bloquear agente", chat_id or phone)
             return
-        await rds.set_block(phone)
+        await rds.set_block(phone, ttl=3600)
         logger.info("Humano assumiu chat %s - agente bloqueado por 1h", chat_id)
         return
 

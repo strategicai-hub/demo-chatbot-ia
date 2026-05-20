@@ -21,6 +21,10 @@ def test_bot_outbound_key_format():
     assert keys.bot_outbound_key("5511999990000") == "5511999990000--testslug:bot_outbound"
 
 
+def test_bot_outbound_texts_key_format():
+    assert keys.bot_outbound_texts_key("5511999990000") == "5511999990000--testslug:bot_outbound:texts"
+
+
 def test_alert_key_format():
     assert keys.alert_key("5511999990000") == "5511999990000--testslug:alert"
 
