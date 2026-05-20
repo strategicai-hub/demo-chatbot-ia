@@ -189,10 +189,29 @@ async def _process_message(msg: dict) -> None:
         logger.info("Phone %s fora da whitelist ALLOWED_PHONES - ignorando", phone)
         return
 
-    # B) Mensagem propria -> bloqueia agente por 1h
+    # B) Comando /reset fura bloqueio para recuperar conversas travadas.
+    if msg_type in TEXT_TYPES and (msg_text or "").strip().lower() == "/reset":
+        await rds.clear_chat_history(phone)
+        await rds.delete_lead(phone)
+        await rds.delete_buffer(phone)
+        await rds.delete_block(phone)
+        log(_ok(f"[{phone}] Reset solicitado — historico, lead e bloqueio apagados"))
+        try:
+            await uazapi.send_text(phone, "Conversa reiniciada.")
+        except Exception as e:
+            log(_err(f"[{phone}] Falha ao confirmar reset via WhatsApp: {e}"))
+            logger.exception("Erro ao confirmar reset para %s", phone)
+        _save_session_log(phone)
+        return
+
+    # B) Mensagem propria. Por padrao, nao bloqueia: eventos fromMe da UAZAPI
+    # podem ser ecos/automacoes e nao uma intervencao humana real.
     if from_me:
         if await rds.is_bot_outbound(phone):
             logger.info("Eco de mensagem automatica para %s ignorado sem bloquear agente", chat_id or phone)
+            return
+        if not settings.BLOCK_ON_FROM_ME:
+            logger.info("Mensagem fromMe para %s ignorada sem bloquear agente", chat_id or phone)
             return
         await rds.set_block(phone)
         logger.info("Humano assumiu chat %s - agente bloqueado por 1h", chat_id)
@@ -205,20 +224,6 @@ async def _process_message(msg: dict) -> None:
 
     # D) Filtra grupos
     if _is_group(chat_id):
-        return
-
-    # D.1) Comando /reset
-    if msg_type in TEXT_TYPES and (msg_text or "").strip().lower() == "/reset":
-        await rds.clear_chat_history(phone)
-        await rds.delete_lead(phone)
-        await rds.delete_buffer(phone)
-        log(_ok(f"[{phone}] Reset solicitado — historico e lead apagados"))
-        try:
-            await uazapi.send_text(phone, "Conversa reiniciada.")
-        except Exception as e:
-            log(_err(f"[{phone}] Falha ao confirmar reset via WhatsApp: {e}"))
-            logger.exception("Erro ao confirmar reset para %s", phone)
-        _save_session_log(phone)
         return
 
     # D.2) Comando /nicho (admin only) — troca o nicho ativo globalmente.

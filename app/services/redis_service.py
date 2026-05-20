@@ -37,6 +37,11 @@ async def is_blocked(phone: str) -> bool:
     return await r.exists(keys.block_key(phone)) == 1
 
 
+async def delete_block(phone: str) -> None:
+    r = await get_redis()
+    await r.delete(keys.block_key(phone))
+
+
 # --------------- eco de mensagens enviadas pelo bot ---------------
 
 async def mark_bot_outbound(phone: str, ttl: int = 300) -> None:
