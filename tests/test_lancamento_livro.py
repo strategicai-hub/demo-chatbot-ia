@@ -29,6 +29,7 @@ def test_builds_lancamento_livro_prompt(monkeypatch):
     assert "apenas como despedida final do fluxo" in rendered
     assert "sempre o último bloco da sua resposta" in rendered
     assert "não envie oferta, pergunta ou novo assunto" in rendered
+    assert "https://www.asaas.com/c/sdxswrpyl5gjvt8z" in rendered
 
 
 def test_presence_confirmation_parser():
