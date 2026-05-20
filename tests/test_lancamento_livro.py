@@ -5,6 +5,7 @@ import pytest
 
 from app import prompt as prompt_mod
 from app.api import EventSubscription, _handle_event_subscription
+from app.consumer import _is_refund_policy_question
 from app.prompt import build_prompt, detect_niche_from_message, resolve_niche
 from app.services import event_reminders
 
@@ -25,11 +26,23 @@ def test_builds_lancamento_livro_prompt(monkeypatch):
     assert "mensagens curtas" in rendered.lower()
     assert "dedicatória exclusiva" in rendered
     assert "Tópicos abordados no livro" in rendered
-    assert "Vou te enviar lembretes mais próximo do dia do evento" in rendered
-    assert "apenas como despedida final do fluxo" in rendered
-    assert "sempre o último bloco da sua resposta" in rendered
-    assert "não envie oferta, pergunta ou novo assunto" in rendered
+    assert "não encerre uma resposta sem fazer uma pergunta clara" in rendered
+    assert (
+        "A propósito, para quem se inscreveu agora, temos uma oportunidade especial: "
+        "o livro físico com dedicatória exclusiva do Eduardo Almeida. "
+        "Gostaria de garantir seu exemplar autografado?"
+    ) in rendered
+    assert "Que ótimo! Para a dedicatória, qual seria o nome completo que você gostaria no livro?" in rendered
+    assert "Quando estivermos mais perto da data, eu vou te mandar novos lembretes por aqui" in rendered
+    assert "Até lá, se você tiver qualquer dúvida, é só me chamar" in rendered
+    assert "O pedido de reembolso pode ser feito em até 7 dias" in rendered
     assert "https://www.asaas.com/c/sdxswrpyl5gjvt8z" in rendered
+
+
+def test_detects_refund_policy_questions():
+    assert _is_refund_policy_question("Qual é a política de reembolso do livro?")
+    assert _is_refund_policy_question("Posso pedir estorno se eu desistir?")
+    assert not _is_refund_policy_question("Quero comprar o livro com dedicatória")
 
 
 def test_presence_confirmation_parser():

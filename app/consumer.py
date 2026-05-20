@@ -138,26 +138,62 @@ def _is_known_automated_from_me_text(text: str) -> bool:
     return normalized in known_texts
 
 
-def _is_event_reminder_farewell_text(text: str) -> bool:
+def _is_event_closing_text(text: str) -> bool:
     normalized = _normalize_text_for_match(text)
-    return (
+    old_closing = (
         "vou te enviar lembretes" in normalized
         and "proximo do dia do evento" in normalized
     )
+    reminder_closing = (
+        "quando estivermos mais perto da data" in normalized
+        and "vou te mandar novos lembretes" in normalized
+    )
+    doubt_closing = (
+        "ate la" in normalized
+        and "qualquer duvida" in normalized
+        and "e so me chamar" in normalized
+    )
+    return old_closing or reminder_closing or doubt_closing
 
 
-def _move_event_reminder_farewell_to_end(parts: list[dict]) -> list[dict]:
-    reminder_farewells = []
+def _is_refund_policy_question(text: str) -> bool:
+    normalized = _normalize_text_for_match(text)
+    refund_terms = (
+        "reembolso",
+        "estorno",
+        "devolucao",
+        "devolver o dinheiro",
+        "cancelar a compra",
+        "cancelamento da compra",
+    )
+    question_terms = (
+        "?",
+        "politica",
+        "prazo",
+        "como",
+        "posso",
+        "pode",
+        "quero",
+        "preciso",
+    )
+    return (
+        any(term in normalized for term in refund_terms)
+        and any(term in normalized for term in question_terms)
+    )
+
+
+def _move_event_closing_to_end(parts: list[dict]) -> list[dict]:
+    closing_parts = []
     ordered_parts = []
     for part in parts:
         if (
             part.get("type") == "text"
-            and _is_event_reminder_farewell_text(part.get("content", ""))
+            and _is_event_closing_text(part.get("content", ""))
         ):
-            reminder_farewells.append(part)
+            closing_parts.append(part)
         else:
             ordered_parts.append(part)
-    return ordered_parts + reminder_farewells
+    return ordered_parts + closing_parts
 
 
 def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
@@ -199,7 +235,7 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
     if not parts:
         parts = [{"type": "text", "content": text}]
 
-    parts = _move_event_reminder_farewell_to_end(parts)
+    parts = _move_event_closing_to_end(parts)
 
     return parts, finalizado, transferir
 
@@ -406,24 +442,34 @@ async def _process_message(msg: dict) -> None:
     unified_msg = "\n".join(messages)
     log(_msg(f"[{phone} - {push_name}] {unified_msg[:300]}"))
 
-    # G) Processamento com IA (com retry)
-    log(f"[TOOL GEMINI] Executando chat(phone={phone}, msg_len={len(unified_msg)})")
+    refund_policy_requested = _is_refund_policy_question(unified_msg)
+
+    # G) Processamento com IA (com retry) ou regra deterministica
     ai_response = ""
     last_error = ""
     tokens = (0, 0, 0)
-    for attempt in range(6):
-        try:
-            ai_response, tokens = await gemini_chat(phone, unified_msg, lead.get("name", ""))
-        except Exception as e:
-            last_error = str(e)
-            log(_err(f"[TOOL GEMINI] Tentativa {attempt + 1}/6: FALHA - {e}"))
-            logger.exception("Erro no Gemini (tentativa %d)", attempt + 1)
+    if refund_policy_requested:
+        log(_ok(f"[REGRA REEMBOLSO] Pergunta de reembolso detectada para {phone}"))
+        ai_response = (
+            "O pedido de reembolso pode ser feito em até 7 dias. "
+            "É só pedir por aqui no WhatsApp que a equipe te ajuda. "
+            "[TRANSFERIR=1] [FINALIZADO=0]"
+        )
+    else:
+        log(f"[TOOL GEMINI] Executando chat(phone={phone}, msg_len={len(unified_msg)})")
+        for attempt in range(6):
+            try:
+                ai_response, tokens = await gemini_chat(phone, unified_msg, lead.get("name", ""))
+            except Exception as e:
+                last_error = str(e)
+                log(_err(f"[TOOL GEMINI] Tentativa {attempt + 1}/6: FALHA - {e}"))
+                logger.exception("Erro no Gemini (tentativa %d)", attempt + 1)
 
-        if ai_response:
-            break
-        if not last_error:
-            log(_warn(f"[TOOL GEMINI] Tentativa {attempt + 1}/6: resposta vazia"))
-        await asyncio.sleep(2)
+            if ai_response:
+                break
+            if not last_error:
+                log(_warn(f"[TOOL GEMINI] Tentativa {attempt + 1}/6: resposta vazia"))
+            await asyncio.sleep(2)
 
     if not ai_response:
         log(_err(f"[TOOL GEMINI] Resultado: FALHA - vazio apos 6 tentativas. Ultimo erro: {last_error}"))
@@ -438,7 +484,10 @@ async def _process_message(msg: dict) -> None:
 
     # I) Parsing e envio
     parts, finalizado, transferir = _parse_ai_response(ai_response)
-    log(_ok(f"[TOOL GEMINI] Resultado: SUCESSO - {len(parts)} parte(s) gerada(s), finalizado={finalizado}, transferir={transferir}"))
+    if refund_policy_requested:
+        transferir = True
+    source_label = "REGRA REEMBOLSO" if refund_policy_requested else "TOOL GEMINI"
+    log(_ok(f"[{source_label}] Resultado: SUCESSO - {len(parts)} parte(s) gerada(s), finalizado={finalizado}, transferir={transferir}"))
     log(_ai(f"[{phone}] {ai_response[:400]}"))
     if tokens[2]:
         log(f"[TOKENS] Entrada: {tokens[0]} | Sa\u00edda: {tokens[1]} | Total: {tokens[2]}")

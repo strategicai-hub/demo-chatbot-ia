@@ -63,6 +63,22 @@ def test_event_reminder_farewell_is_moved_to_last_part():
     assert parts[-1]["content"].startswith("Vou te enviar lembretes")
 
 
+def test_new_event_closing_messages_are_moved_to_last_parts():
+    parts, _, _ = _parse_ai_response(
+        "Comunicação Humanizada ajuda a reduzir conflitos.\n\n"
+        "Quando estivermos mais perto da data, eu vou te mandar novos lembretes "
+        "por aqui para você não esquecer, ta bom?\n\n"
+        "A propósito, para quem se inscreveu agora, temos uma oportunidade especial: "
+        "o livro físico com dedicatória exclusiva do Eduardo Almeida.\n\n"
+        "Até lá, se você tiver qualquer dúvida, é só me chamar 😉"
+    )
+
+    assert len(parts) == 4
+    assert parts[1]["content"].startswith("A propósito")
+    assert parts[2]["content"].startswith("Quando estivermos")
+    assert parts[3]["content"].startswith("Até lá")
+
+
 def test_unknown_tag_falls_through_as_text():
     # Tag que nao esta em MEDIA_DICT deve virar texto normal
     parts, _, _ = _parse_ai_response("Olha isso: [FOTO_INEXISTENTE]")
