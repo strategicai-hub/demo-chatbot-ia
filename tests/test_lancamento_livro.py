@@ -5,7 +5,7 @@ import pytest
 
 from app import prompt as prompt_mod
 from app.api import EventSubscription, _handle_event_subscription
-from app.consumer import _is_refund_policy_question
+from app.consumer import _book_price_response, _is_book_price_question, _is_refund_policy_question
 from app.prompt import build_prompt, detect_niche_from_message, resolve_niche
 from app.services import event_reminders
 
@@ -36,6 +36,10 @@ def test_builds_lancamento_livro_prompt(monkeypatch):
     assert "Quando estivermos mais perto da data, eu vou te mandar novos lembretes por aqui" in rendered
     assert "Até lá, se você tiver qualquer dúvida, é só me chamar" in rendered
     assert "O pedido de reembolso pode ser feito em até 7 dias" in rendered
+    assert "Valor do livro físico com dedicatória: R$ 49,50" in rendered
+    assert "O livro físico com dedicatória exclusiva está R$ 49,50." in rendered
+    assert "sempre responda à pergunta explícita do lead" in rendered
+    assert "Não ignore a pergunta para voltar ao roteiro." in rendered
     assert "https://www.asaas.com/c/sdxswrpyl5gjvt8z" in rendered
 
 
@@ -43,6 +47,27 @@ def test_detects_refund_policy_questions():
     assert _is_refund_policy_question("Qual é a política de reembolso do livro?")
     assert _is_refund_policy_question("Posso pedir estorno se eu desistir?")
     assert not _is_refund_policy_question("Quero comprar o livro com dedicatória")
+
+
+def test_detects_book_price_questions_after_offer():
+    history = [
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "text": (
+                        "A propósito, para quem se inscreveu agora, temos uma oportunidade especial: "
+                        "o livro físico com dedicatória exclusiva do Eduardo Almeida."
+                    )
+                }
+            ],
+        }
+    ]
+
+    assert _is_book_price_question("Legal. Quanto é?", history)
+    assert _is_book_price_question("Qual o valor do livro?")
+    assert not _is_book_price_question("Quanto é a inscrição?", history)
+    assert "R$ 49,50" in _book_price_response()
 
 
 def test_presence_confirmation_parser():

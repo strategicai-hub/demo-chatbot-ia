@@ -13,6 +13,7 @@ from contextvars import ContextVar
 import redis as redis_sync
 
 from app.config import settings
+from app.client_data import load_client_data
 from app.images import MEDIA_DICT
 from app.prompt import ALLOWED_NICHES, NICHE_KEY
 from app.services import event_reminders
@@ -179,6 +180,61 @@ def _is_refund_policy_question(text: str) -> bool:
     return (
         any(term in normalized for term in refund_terms)
         and any(term in normalized for term in question_terms)
+    )
+
+
+def _history_has_recent_book_offer(history: list[dict]) -> bool:
+    for entry in history[-6:]:
+        text = " ".join(
+            part.get("text", "")
+            for part in entry.get("parts", [])
+            if isinstance(part, dict)
+        )
+        normalized = _normalize_text_for_match(text)
+        if "livro fisico" in normalized and "dedicatoria" in normalized:
+            return True
+    return False
+
+
+def _is_book_price_question(text: str, history: list[dict] | None = None) -> bool:
+    normalized = _normalize_text_for_match(text)
+    if not normalized:
+        return False
+
+    has_price_term = any(
+        term in normalized
+        for term in (
+            "valor",
+            "preco",
+            "quanto custa",
+            "quanto e",
+            "quanto sai",
+            "custa quanto",
+        )
+    )
+    if not has_price_term:
+        return False
+
+    if any(term in normalized for term in ("inscricao", "evento", "ingresso", "entrada")):
+        return False
+
+    if "livro" in normalized or "exemplar" in normalized:
+        return True
+
+    short_question = len(normalized) <= 45
+    return bool(short_question and history and _history_has_recent_book_offer(history))
+
+
+def _book_offer_price() -> str:
+    data = load_client_data(niche="lancamento_livro")
+    return (data.get("book_offer") or {}).get("price") or "R$ 49,50"
+
+
+def _book_price_response() -> str:
+    return (
+        f"O livro físico com dedicatória exclusiva está {_book_offer_price()}.\n\n"
+        "Se quiser garantir, para a dedicatória, qual seria o nome completo que "
+        "você gostaria no livro? [TRANSFERIR=0] [FINALIZADO=0]"
     )
 
 
@@ -442,12 +498,15 @@ async def _process_message(msg: dict) -> None:
     unified_msg = "\n".join(messages)
     log(_msg(f"[{phone} - {push_name}] {unified_msg[:300]}"))
 
+    recent_history = await rds.get_chat_history(phone)
     refund_policy_requested = _is_refund_policy_question(unified_msg)
+    book_price_requested = _is_book_price_question(unified_msg, recent_history)
 
     # G) Processamento com IA (com retry) ou regra deterministica
     ai_response = ""
     last_error = ""
     tokens = (0, 0, 0)
+    deterministic_response = False
     if refund_policy_requested:
         log(_ok(f"[REGRA REEMBOLSO] Pergunta de reembolso detectada para {phone}"))
         ai_response = (
@@ -455,6 +514,11 @@ async def _process_message(msg: dict) -> None:
             "É só pedir por aqui no WhatsApp que a equipe te ajuda. "
             "[TRANSFERIR=1] [FINALIZADO=0]"
         )
+        deterministic_response = True
+    elif book_price_requested:
+        log(_ok(f"[REGRA PRECO_LIVRO] Pergunta de valor do livro detectada para {phone}"))
+        ai_response = _book_price_response()
+        deterministic_response = True
     else:
         log(f"[TOOL GEMINI] Executando chat(phone={phone}, msg_len={len(unified_msg)})")
         for attempt in range(6):
@@ -476,6 +540,10 @@ async def _process_message(msg: dict) -> None:
         _save_session_log(phone)
         return
 
+    if deterministic_response:
+        await rds.append_chat_history(phone, "user", unified_msg)
+        await rds.append_chat_history(phone, "model", ai_response)
+
     # H) Verifica bloqueio pos-IA
     if await rds.is_blocked(phone):
         log(_warn(f"[{phone}] Humano assumiu durante processamento — resposta descartada"))
@@ -486,7 +554,12 @@ async def _process_message(msg: dict) -> None:
     parts, finalizado, transferir = _parse_ai_response(ai_response)
     if refund_policy_requested:
         transferir = True
-    source_label = "REGRA REEMBOLSO" if refund_policy_requested else "TOOL GEMINI"
+    if refund_policy_requested:
+        source_label = "REGRA REEMBOLSO"
+    elif book_price_requested:
+        source_label = "REGRA PRECO_LIVRO"
+    else:
+        source_label = "TOOL GEMINI"
     log(_ok(f"[{source_label}] Resultado: SUCESSO - {len(parts)} parte(s) gerada(s), finalizado={finalizado}, transferir={transferir}"))
     log(_ai(f"[{phone}] {ai_response[:400]}"))
     if tokens[2]:
