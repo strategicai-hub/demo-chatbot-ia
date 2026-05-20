@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import time
+import unicodedata
 from contextvars import ContextVar
 
 import redis as redis_sync
@@ -113,6 +114,12 @@ def _normalize_from_me_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
 
 
+def _normalize_text_for_match(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text or "")
+    without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", without_accents).strip().lower()
+
+
 def _is_known_automated_from_me_text(text: str) -> bool:
     normalized = _normalize_from_me_text(text)
     if not normalized:
@@ -128,6 +135,28 @@ def _is_known_automated_from_me_text(text: str) -> bool:
         "Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
     ))
     return normalized in known_texts
+
+
+def _is_event_reminder_farewell_text(text: str) -> bool:
+    normalized = _normalize_text_for_match(text)
+    return (
+        "vou te enviar lembretes" in normalized
+        and "proximo do dia do evento" in normalized
+    )
+
+
+def _move_event_reminder_farewell_to_end(parts: list[dict]) -> list[dict]:
+    reminder_farewells = []
+    ordered_parts = []
+    for part in parts:
+        if (
+            part.get("type") == "text"
+            and _is_event_reminder_farewell_text(part.get("content", ""))
+        ):
+            reminder_farewells.append(part)
+        else:
+            ordered_parts.append(part)
+    return ordered_parts + reminder_farewells
 
 
 def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
@@ -168,6 +197,8 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
 
     if not parts:
         parts = [{"type": "text", "content": text}]
+
+    parts = _move_event_reminder_farewell_to_end(parts)
 
     return parts, finalizado, transferir
 

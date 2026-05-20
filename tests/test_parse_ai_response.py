@@ -49,6 +49,20 @@ def test_split_by_double_newline():
     assert len(parts) == 2
 
 
+def test_event_reminder_farewell_is_moved_to_last_part():
+    parts, _, _ = _parse_ai_response(
+        "A Comunicação Humanizada ajuda a transformar conversas difíceis.\n\n"
+        "Vou te enviar lembretes mais próximo do dia do evento. "
+        "E, se tiver qualquer dúvida até lá, pode me perguntar por aqui.\n\n"
+        "A propósito, temos uma oportunidade especial: "
+        "o livro físico com dedicatória exclusiva do Eduardo Almeida."
+    )
+
+    assert len(parts) == 3
+    assert parts[1]["content"].startswith("A propósito")
+    assert parts[-1]["content"].startswith("Vou te enviar lembretes")
+
+
 def test_unknown_tag_falls_through_as_text():
     # Tag que nao esta em MEDIA_DICT deve virar texto normal
     parts, _, _ = _parse_ai_response("Olha isso: [FOTO_INEXISTENTE]")
