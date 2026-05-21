@@ -6,30 +6,21 @@
 # Nicho do negocio - define qual prompt em app/prompts/{niche}.j2
 # e usado pela IA. Nichos suportados estao em app/prompts/.
 # Observacao: o nicho tambem e detectado dinamicamente a partir
-# da mensagem inicial do lead (ex.: "Olá! Tenho interesse em
-# capital de giro..." -> capital_de_giro). O valor abaixo e
-# apenas o fallback quando a mensagem nao casa com nenhuma regra.
-niche: "capital_de_giro"
+# da mensagem inicial do lead (ex.: "Olá! Procuro um pet shop..."
+# -> petshop). O valor abaixo e apenas o fallback quando a
+# mensagem nao casa com nenhuma regra.
+niche: "petshop"
 
 business:
-  name: "Luitz Prime"
-  address: "Avenida Higienópolis, nº 1100 - Londrina-PR"
+  name: "Pet Shop Exemplo"
+  address: "Rua Exemplo, 123 - Cidade-UF"
 
 assistant:
-  name: "Vic"
+  name: "Luna"
   # greeting é injetado dinamicamente pelo código (prompt.py) com base no
   # horário de São Paulo: "bom dia" / "boa tarde" / "boa noite". Qualquer
   # valor informado aqui é ignorado — deixe em branco ou omita o campo.
   greeting: ""
-
-# --- Configuracao do nicho capital_de_giro ---
-capital_de_giro:
-  asset_types:
-    - "Imóvel urbano"
-    - "Imóvel rural"
-    - "Terreno"
-    - "Área rural"
-    - "Automóvel"
 
 payment:
   methods:
@@ -39,9 +30,6 @@ payment:
 
 differentials:
   - "Atendimento Humanizado"
-  - "Consultoria Total e Ativa"
-  - "Plano de Pagamento Personalizado"
-  - "Autonomia Para Acelerar os Processos"
 
 # Midias que a IA pode enviar via tags no prompt.
 # Formato: "[TAG]": {url: "https://...", type: "image|document|video"}

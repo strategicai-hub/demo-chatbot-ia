@@ -276,16 +276,16 @@ def list_available_niches() -> list[str]:
     """Lista nichos disponiveis a partir de app/prompts/*.j2."""
     prompts_dir = Path(__file__).parent / "app" / "prompts"
     if not prompts_dir.exists():
-        return ["capital_de_giro"]
+        return ["petshop"]
     niches = sorted(p.stem for p in prompts_dir.glob("*.j2"))
-    return niches or ["capital_de_giro"]
+    return niches or ["petshop"]
 
 
 def ask_niche() -> str:
     niches = list_available_niches()
     if len(niches) == 1:
         return niches[0]
-    default = "capital_de_giro" if "capital_de_giro" in niches else niches[0]
+    default = "petshop" if "petshop" in niches else niches[0]
     print("\n  Nichos disponiveis:")
     for i, n in enumerate(niches, 1):
         print(f"    {i}) {n}")
@@ -419,12 +419,10 @@ ALLOWED_PHONES=
     client = repo_dir / "client.yaml"
     if example.exists() and not client.exists():
         c = example.read_text(encoding="utf-8")
-        c = c.replace('niche: "capital_de_giro"', f'niche: "{data["niche"]}"')
-        c = c.replace('"Luitz Prime"', f'"{data["business_name"]}"')
-        c = c.replace('"Avenida Higienópolis, nº 1100 - Londrina-PR"', '"[PREENCHER]"')
-        c = c.replace('"Vic"', f'"{data["assistant_name"]}"')
-        c = c.replace('"Ola! Sou a Vic, tudo bem?"',
-                       f'"Ola! Sou a {data["assistant_name"]}, tudo bem?"')
+        c = c.replace('niche: "petshop"', f'niche: "{data["niche"]}"')
+        c = c.replace('"Pet Shop Exemplo"', f'"{data["business_name"]}"')
+        c = c.replace('"Rua Exemplo, 123 - Cidade-UF"', '"[PREENCHER]"')
+        c = c.replace('"Luna"', f'"{data["assistant_name"]}"')
         client.write_text(c, encoding="utf-8")
         print("    client.yaml - OK")
 

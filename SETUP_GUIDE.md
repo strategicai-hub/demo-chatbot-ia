@@ -35,9 +35,9 @@ python setup.py
 ```
 
 O script vai perguntar:
-1. **Nome do negocio** - ex: "Luitz Prime"
-2. **Slug** - identificador unico (ex: "luitz-prime"), gerado automaticamente
-3. **Nome da assistente** - ex: "Vic"
+1. **Nome do negocio** - ex: "Pet Shop Exemplo"
+2. **Slug** - identificador unico (ex: "pet-shop-exemplo"), gerado automaticamente
+3. **Nome da assistente** - ex: "Luna"
 4. **Telefone do dono** - para receber alertas
 5. **UAZAPI token** - token da instancia WhatsApp
 6. **GEMINI API key** - chave da API do Google Gemini
@@ -70,35 +70,23 @@ Abra o arquivo `client.yaml` no novo repositorio e preencha **todos** os dados d
 
 **`niche`** - Nicho do negocio (define o prompt usado)
 ```yaml
-# Nichos disponiveis: capital_de_giro, consorcio, material_construcao,
-# petshop, lancamento_livro.
+# Nichos disponiveis: petshop, material_construcao, lancamento_livro.
 # Tambem detectado dinamicamente pela mensagem inicial do lead.
-niche: "capital_de_giro"
+niche: "petshop"
 ```
 
 **`business`** - Dados basicos
 ```yaml
 business:
-  name: "Luitz Prime"
-  address: "Avenida Higienópolis, nº 1100 - Londrina-PR"
+  name: "Pet Shop Exemplo"
+  address: "Rua Exemplo, 123 - Cidade-UF"
 ```
 
 **`assistant`** - Nome (greeting e injetado pelo codigo conforme horario de SP)
 ```yaml
 assistant:
-  name: "Vic"
+  name: "Luna"
   greeting: ""
-```
-
-**`capital_de_giro`** - Tipos de bem aceitos como garantia (apenas no nicho capital_de_giro)
-```yaml
-capital_de_giro:
-  asset_types:
-    - "Imóvel urbano"
-    - "Imóvel rural"
-    - "Terreno"
-    - "Área rural"
-    - "Automóvel"
 ```
 
 **`payment`** - Formas de pagamento

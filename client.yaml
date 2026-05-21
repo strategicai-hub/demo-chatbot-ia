@@ -1,34 +1,15 @@
-niche: capital_de_giro
+niche: lancamento_livro
 
 business:
-  name: Luitz Prime
-  address: Avenida Higienópolis, nº 1100 - Londrina-PR
+  name: Ikigai Brasil
+  type: evento de lançamento de livro
+  address: São Paulo - SP
 
 assistant:
-  name: Vic
+  name: Mya
   # greeting é injetado dinamicamente pelo código (prompt.py) com base no
   # horário de São Paulo: "bom dia" / "boa tarde" / "boa noite". Qualquer
   # valor informado aqui é ignorado.
   greeting: ""
-
-capital_de_giro:
-  asset_types:
-    - Imóvel urbano
-    - Imóvel rural
-    - Terreno
-    - Área rural
-    - Automóvel
-
-payment:
-  methods:
-    - crédito
-    - PIX
-    - boleto
-
-differentials:
-  - Atendimento Humanizado
-  - Consultoria Total e Ativa
-  - Plano de Pagamento Personalizado
-  - Autonomia Para Acelerar os Processos
 
 media: {}

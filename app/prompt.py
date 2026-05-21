@@ -28,11 +28,9 @@ from app.client_data import load_client_data
 from app.config import settings
 from app.services import sai_sync
 
-DEFAULT_NICHE = "capital_de_giro"
+DEFAULT_NICHE = "lancamento_livro"
 ALLOWED_NICHES = {
     "petshop",
-    "capital_de_giro",
-    "consorcio",
     "material_construcao",
     "lancamento_livro",
 }
@@ -143,10 +141,6 @@ def detect_niche_from_message(text: str) -> str | None:
 
     if any(k in t for k in ("banho", "tosa", "pet shop", "petshop", "gato", "gata", "cachorro", "cadela")):
         return "petshop"
-    if "capital de giro" in t:
-        return "capital_de_giro"
-    if "consorcio" in t:
-        return "consorcio"
     if any(
         k in t
         for k in (
