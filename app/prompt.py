@@ -1,13 +1,16 @@
 """
 Gera o SYSTEM_PROMPT a partir do template Jinja2 + dados de client*.yaml.
 
-Cadeia de resolucao do nicho ativo:
-  1. Nicho travado no lead/formulario, quando informado pelo codigo chamador.
-  2. Override no Redis (`{PROJECT_SLUG}:active_niche`) - setado via comando
-     /nicho: <nome> enviado por um numero em ADMIN_PHONES.
-  3. Env var `ACTIVE_NICHE` configurada na stack (Portainer).
-  4. Deteccao por palavra-chave na primeira mensagem do lead.
-  5. Campo `niche` do client.yaml (ou DEFAULT_NICHE como ultima rede).
+Cadeia de resolucao do nicho ativo (sem mais runtime switches):
+  1. Nicho travado no lead (campo `nicho` do hash do lead) — gravado pelo
+     `/api/subscribe`, pelo lock do welcome `fromMe` em consumer.py, ou
+     forcado em gemini.chat para leads com `event_id`/`source=formulario_evento`.
+  2. Campo `niche` do `client.yaml` (ou DEFAULT_NICHE como ultima rede).
+
+O nicho NAO pode mais ser trocado em runtime — nem por comando `/nicho:` via
+WhatsApp, nem por override no Redis, nem pela env `ACTIVE_NICHE`. Para trocar
+o nicho de um deploy, edite `client.yaml` ou as logicas em codigo (locked_niche
+em gemini.chat, auto-lock em consumer.py).
 
 Para cada nicho, o prompt fica em `app/prompts/{niche}.j2` e os dados do
 negocio podem ficar em `client.{niche}.yaml` (com fallback para `client.yaml`).
@@ -181,18 +184,14 @@ def get_active_niche_override() -> str | None:
 
 
 def resolve_niche(message_text: str | None = None, locked_niche: str | None = None) -> str:
-    """Aplica a cadeia de overrides e retorna o nicho a ser usado agora."""
+    """Resolve o nicho ativo. Apenas duas fontes: lock por lead e client.yaml.
+
+    Runtime switches (comando /nicho:, override Redis, env ACTIVE_NICHE,
+    deteccao por palavra-chave) foram removidos para que o nicho de um deploy
+    so mude por alteracao explicita de codigo.
+    """
     if locked_niche and locked_niche in ALLOWED_NICHES:
         return locked_niche
-
-    override = get_active_niche_override()
-    if override:
-        return override
-    if settings.ACTIVE_NICHE and settings.ACTIVE_NICHE in ALLOWED_NICHES:
-        return settings.ACTIVE_NICHE
-    detected = detect_niche_from_message(message_text or "")
-    if detected:
-        return detected
     base = load_client_data()
     return base.get("niche") or DEFAULT_NICHE
 

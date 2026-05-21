@@ -17,7 +17,6 @@ import redis as redis_sync
 from app.config import settings
 from app.client_data import load_client_data
 from app.images import MEDIA_DICT
-from app.prompt import ALLOWED_NICHES, NICHE_KEY
 from app.services import event_reminders
 from app.services import redis_service as rds
 from app.services import uazapi
@@ -461,51 +460,6 @@ async def _process_message(msg: dict) -> None:
     # D) Filtra grupos
     if _is_group(chat_id):
         return
-
-    # D.2) Comando /nicho (admin only) — troca o nicho ativo globalmente.
-    # Aceita: /nicho, /nicho petshop, /nicho: petshop, /nicho:petshop, /nicho clear
-    if msg_type in TEXT_TYPES:
-        raw = (msg_text or "").strip()
-        if raw.lower().startswith("/nicho"):
-            if phone not in settings.admin_phones_set:
-                log(_warn(f"[{phone}] tentou usar /nicho sem permissão"))
-                _save_session_log(phone)
-                return
-            arg = raw[len("/nicho"):].lstrip(":").strip().lower()
-            r = await rds.get_redis()
-            niches_list = ", ".join(sorted(ALLOWED_NICHES))
-            try:
-                if not arg:
-                    current = await r.get(NICHE_KEY) or settings.ACTIVE_NICHE or "(nenhum)"
-                    await uazapi.send_text(
-                        phone,
-                        f"Nicho ativo: {current}\nDisponíveis: {niches_list}\n"
-                        f"Use: /nicho: <nome>  ou  /nicho: clear",
-                    )
-                elif arg == "clear":
-                    await r.delete(NICHE_KEY)
-                    await uazapi.send_text(
-                        phone,
-                        "[OK] Override de nicho removido. Voltou à detecção por palavra-chave.",
-                    )
-                    log(_ok(f"[{phone}] override de nicho limpo"))
-                elif arg not in ALLOWED_NICHES:
-                    await uazapi.send_text(
-                        phone,
-                        f"[ERRO] Nicho inválido: {arg}\nVálidos: {niches_list}",
-                    )
-                else:
-                    await r.set(NICHE_KEY, arg, ex=86400)
-                    await uazapi.send_text(
-                        phone,
-                        f"[OK] Nicho ativo agora: {arg}\nDisponíveis: {niches_list}",
-                    )
-                    log(_ok(f"[{phone}] nicho ativo trocado para {arg}"))
-            except Exception as e:
-                log(_err(f"[{phone}] Falha no handler /nicho: {e}"))
-                logger.exception("Erro no handler /nicho")
-            _save_session_log(phone)
-            return
 
     # Cadastro de lead
     lead = await rds.get_lead(phone)

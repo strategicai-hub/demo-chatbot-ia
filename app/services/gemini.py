@@ -6,7 +6,7 @@ import google.generativeai as genai
 
 from app.client_data import load_client_data
 from app.config import settings
-from app.prompt import detect_niche_from_message, get_system_prompt, resolve_niche
+from app.prompt import get_system_prompt, resolve_niche
 from app.services.redis_service import (
     append_chat_history,
     get_chat_history,
@@ -57,28 +57,16 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
     locked_niche = lead.get("nicho") or None
 
     # Lock permanente: lead inscrito pelo formulário do evento
-    # (`/api/subscribe`) carrega `event_id` e `source=formulario_evento`.
-    # Esses leads ficam travados em `lancamento_livro` para sempre — nem
-    # detecção por palavra-chave, nem `ACTIVE_NICHE`, nem `/nicho:` admin
-    # podem trocar. A única forma de soltar é `/reset` (apaga o lead).
+    # (`/api/subscribe` ou auto-lock do welcome `fromMe` em consumer.py)
+    # carrega `event_id` e `source=formulario_evento`. Esses leads ficam
+    # travados em `lancamento_livro` para sempre. A única forma de soltar
+    # é `/reset` (apaga o lead).
     if lead.get("event_id") or lead.get("source") == "formulario_evento":
         locked_niche = "lancamento_livro"
         if lead.get("nicho") != "lancamento_livro":
             await update_lead(phone, nicho="lancamento_livro")
 
-    first_user_text = next(
-        (
-            entry.get("parts", [{}])[0].get("text", "")
-            for entry in history
-            if entry.get("role") == "user"
-        ),
-        user_message,
-    )
-    detected_niche = detect_niche_from_message(first_user_text)
-    niche = resolve_niche(first_user_text, locked_niche=locked_niche)
-
-    if not locked_niche and detected_niche:
-        await update_lead(phone, nicho=detected_niche)
+    niche = resolve_niche(locked_niche=locked_niche)
 
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash",
