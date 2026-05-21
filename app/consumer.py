@@ -9,6 +9,8 @@ import re
 import time
 import unicodedata
 from contextvars import ContextVar
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import redis as redis_sync
 
@@ -152,6 +154,70 @@ def _is_known_automated_from_me_text(text: str) -> bool:
         "Comunicação Humanizada. Estamos contentes com sua inscrição 😃"
     ))
     return normalized in known_texts
+
+
+def _is_event_welcome_text(text: str) -> bool:
+    """Detecta se o fromMe é uma das mensagens de boas-vindas do evento.
+
+    Usado para travar o lead em `lancamento_livro` mesmo quando o welcome
+    vem de um sistema externo (n8n, Asaas, outro bot) e não pelo
+    `/api/subscribe` deste chatbot. Assim, quando o humano responder, o
+    lock por `event_id`/`source` em [gemini.chat] já está armado.
+    """
+    normalized = _normalize_from_me_text(text)
+    if not normalized:
+        return False
+
+    folded = _normalize_text_for_match(normalized)
+    if any(
+        folded.startswith(_normalize_text_for_match(prefix))
+        for prefix in _AUTOMATED_FROM_ME_PREFIXES
+    ):
+        return True
+
+    configured = {
+        _normalize_from_me_text(item)
+        for item in event_reminders.registration_messages()
+        if item
+    }
+    return normalized in configured
+
+
+_SP_TZ_CONSUMER = ZoneInfo("America/Sao_Paulo")
+
+
+async def _ensure_event_lead_lock(phone: str, push_name: str = "") -> None:
+    """Trava o lead em `lancamento_livro` quando o welcome da Mya foi detectado.
+
+    Idempotente: se o lock já está aplicado (`source=formulario_evento` +
+    `event_id` setados), só atualiza `atualizado_em`. Cobre o caso de o
+    welcome vir de um sistema externo (n8n, Asaas, outro bot) sem passar
+    pelo `/api/subscribe` deste chatbot.
+    """
+    now = datetime.now(_SP_TZ_CONSUMER).isoformat(timespec="seconds")
+    lead = await rds.get_lead(phone)
+    if not lead:
+        await rds.create_lead(phone, push_name)
+        lead = await rds.get_lead(phone) or {}
+
+    already_locked = (
+        lead.get("source") == "formulario_evento"
+        and lead.get("event_id")
+        and lead.get("nicho") == event_reminders.EVENT_NICHE
+    )
+    fields = {"atualizado_em": now}
+    if not already_locked:
+        fields["nicho"] = event_reminders.EVENT_NICHE
+        fields["source"] = "formulario_evento"
+        fields["event_id"] = event_reminders.event_id()
+    if not lead.get("inscrito_em"):
+        fields["inscrito_em"] = now
+    if push_name and not lead.get("name"):
+        fields["name"] = push_name
+
+    await rds.update_lead(phone, **fields)
+    if not already_locked:
+        logger.info("Lock evento aplicado via welcome fromMe para %s", phone)
 
 
 def _is_event_closing_text(text: str) -> bool:
@@ -367,6 +433,14 @@ async def _process_message(msg: dict) -> None:
     # B) Mensagem propria. Bloqueia atendimento humano, exceto ecos do bot/form.
     if from_me:
         if await rds.is_bot_outbound(phone, msg_text) or _is_known_automated_from_me_text(msg_text):
+            # Se o fromMe é o welcome da Mya (formulario do evento, mesmo que
+            # disparado por outro sistema), trava o lead em lancamento_livro
+            # antes do humano responder. Idempotente.
+            if _is_event_welcome_text(msg_text):
+                try:
+                    await _ensure_event_lead_lock(phone, push_name)
+                except Exception:
+                    logger.exception("Falha ao aplicar lock do evento via welcome fromMe para %s", phone)
             logger.info("Mensagem automatica fromMe para %s ignorada sem bloquear agente", chat_id or phone)
             return
         if not settings.BLOCK_ON_FROM_ME:
