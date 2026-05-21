@@ -56,6 +56,16 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
     lead = await get_lead(phone) or {}
     locked_niche = lead.get("nicho") or None
 
+    # Lock permanente: lead inscrito pelo formulário do evento
+    # (`/api/subscribe`) carrega `event_id` e `source=formulario_evento`.
+    # Esses leads ficam travados em `lancamento_livro` para sempre — nem
+    # detecção por palavra-chave, nem `ACTIVE_NICHE`, nem `/nicho:` admin
+    # podem trocar. A única forma de soltar é `/reset` (apaga o lead).
+    if lead.get("event_id") or lead.get("source") == "formulario_evento":
+        locked_niche = "lancamento_livro"
+        if lead.get("nicho") != "lancamento_livro":
+            await update_lead(phone, nicho="lancamento_livro")
+
     first_user_text = next(
         (
             entry.get("parts", [{}])[0].get("text", "")
