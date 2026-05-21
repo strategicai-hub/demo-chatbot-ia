@@ -166,6 +166,35 @@ async def test_from_me_form_greeting_does_not_block(monkeypatch):
     assert not called, "Mensagem inicial do formulario nao deveria bloquear"
 
 
+@pytest.mark.parametrize("message", [
+    "Olá! Eu sou a Mya, assistente virtual do lançamento do livro Comunicação Humanizada.",
+    "Queremos te conhecer melhor. O que te motivou a se inscrever no nosso evento?",
+])
+@pytest.mark.asyncio
+async def test_from_me_event_automation_prefixes_do_not_block(monkeypatch, message):
+    called = False
+
+    async def fake_set_block(phone, ttl=None):
+        nonlocal called
+        called = True
+
+    async def fake_is_bot_outbound(phone, text=""):
+        return False
+
+    monkeypatch.setattr(consumer.rds, "set_block", fake_set_block)
+    monkeypatch.setattr(consumer.rds, "is_bot_outbound", fake_is_bot_outbound)
+
+    await consumer._process_message({
+        "phone": "5511999990000",
+        "msg_type": "Conversation",
+        "msg": message,
+        "from_me": True,
+        "chat_id": "5511999990000@c.us",
+    })
+
+    assert not called, "Mensagens automaticas do formulario nao deveriam bloquear"
+
+
 @pytest.mark.asyncio
 async def test_from_me_unmatched_text_blocks_even_after_other_bot_outbound(monkeypatch):
     called = False

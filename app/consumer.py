@@ -121,10 +121,25 @@ def _normalize_text_for_match(text: str) -> str:
     return re.sub(r"\s+", " ", without_accents).strip().lower()
 
 
+_AUTOMATED_FROM_ME_PREFIXES = (
+    "Olá! Eu sou a Mya, assistente virtual",
+    "Olá! Sou a Mya, assistente virtual",
+    "Olá! Sou, sou a Mya, assistente virtual",
+    "Queremos te conhecer melhor",
+)
+
+
 def _is_known_automated_from_me_text(text: str) -> bool:
     normalized = _normalize_from_me_text(text)
     if not normalized:
         return False
+
+    folded = _normalize_text_for_match(normalized)
+    if any(
+        folded.startswith(_normalize_text_for_match(prefix))
+        for prefix in _AUTOMATED_FROM_ME_PREFIXES
+    ):
+        return True
 
     known_texts = {
         _normalize_from_me_text(item)
