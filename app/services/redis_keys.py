@@ -41,6 +41,10 @@ def alert_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:alert"
 
 
+def invite_sent_key(phone: str) -> str:
+    return f"{_phone_ns(phone)}:invite_sent"
+
+
 def followup_active_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:followup:active"
 

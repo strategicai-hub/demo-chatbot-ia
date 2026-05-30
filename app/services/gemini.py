@@ -1,8 +1,27 @@
+"""Wrapper do Gemini usando o SDK `google-genai` (novo SDK oficial).
+
+Decisões importantes (regra global de chatbots Python):
+- Usa `google-genai`. Evitar `google-generativeai` (legado).
+- `thinking_budget=0` em TODA chamada: o gemini-2.5-flash gera tokens de
+  raciocinio internos por padrao, cobrados como output. Desligar reduz
+  drasticamente o custo em bots conversacionais simples.
+- Sem `max_output_tokens` no chat principal: as respostas carregam tags
+  ([CONVITE], [FINALIZADO=], [TRANSFERIR=]) e podem ter varias partes; um teto
+  curto truncaria essas tags. Nas chamadas auxiliares (resumo/handoff) o teto
+  e seguro porque `thinking_budget=0` impede o pensamento de consumir o orcamento.
+- `temperature`: 0.4 no chat, 0.2 em transcricao/analise de imagem, 0.3 nos resumos.
+
+As chamadas do SDK sao sincronas; rodam em `asyncio.to_thread` para nao travar o
+event loop.
+"""
+import asyncio
 import logging
 from datetime import datetime, timedelta
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types as gtypes
 
 from app.client_data import load_client_data
 from app.config import settings
@@ -13,6 +32,14 @@ from app.services.redis_service import (
     get_lead,
     update_lead,
 )
+
+logger = logging.getLogger(__name__)
+
+_MODEL = "gemini-2.5-flash"
+_client: Optional[genai.Client] = None
+
+# thinking_budget=0 em todas as chamadas (regra global de custo).
+_THINKING_OFF = gtypes.ThinkingConfig(thinking_budget=0, include_thoughts=False)
 
 _SP_TZ = ZoneInfo("America/Sao_Paulo")
 _WEEK = [
@@ -37,20 +64,36 @@ def _temporal_prefix() -> str:
     )
 
 
-logger = logging.getLogger(__name__)
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
-_configured = False
+
+def _history_to_contents(history: list[dict]) -> list[gtypes.Content]:
+    contents: list[gtypes.Content] = []
+    for h in history:
+        role = h.get("role")
+        text = (h.get("parts") or [{}])[0].get("text", "")
+        if not text:
+            continue
+        contents.append(gtypes.Content(role=role, parts=[gtypes.Part.from_text(text=text)]))
+    return contents
 
 
-def _ensure_configured() -> None:
-    global _configured
-    if not _configured:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _configured = True
+def _usage_tokens(response: Any) -> tuple[int, int, int]:
+    meta = getattr(response, "usage_metadata", None)
+    if not meta:
+        return (0, 0, 0)
+    inp = getattr(meta, "prompt_token_count", 0) or 0
+    out = getattr(meta, "candidates_token_count", 0) or 0
+    total = getattr(meta, "total_token_count", 0) or (inp + out)
+    return (inp, out, total)
 
 
 async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str, tuple[int, int, int]]:
-    _ensure_configured()
+    client = _get_client()
 
     history = await get_chat_history(phone)
     lead = await get_lead(phone) or {}
@@ -68,21 +111,26 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
 
     niche = resolve_niche(locked_niche=locked_niche)
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        system_instruction=get_system_prompt(niche=niche),
+    contents = _history_to_contents(history)
+    contents.append(
+        gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=_temporal_prefix() + user_message)])
     )
 
-    chat_session = model.start_chat(history=history)
-    response = chat_session.send_message(_temporal_prefix() + user_message)
-    ai_text = response.text.strip() if response.text else ""
+    config = gtypes.GenerateContentConfig(
+        system_instruction=get_system_prompt(niche=niche),
+        temperature=0.4,
+        thinking_config=_THINKING_OFF,
+    )
 
-    tokens = (0, 0, 0)
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
-        meta = response.usage_metadata
-        inp = meta.prompt_token_count or 0
-        out = meta.candidates_token_count or 0
-        tokens = (inp, out, meta.total_token_count or inp + out)
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=_MODEL,
+        contents=contents,
+        config=config,
+    )
+
+    ai_text = (response.text or "").strip()
+    tokens = _usage_tokens(response)
 
     await append_chat_history(phone, "user", user_message)
     if ai_text:
@@ -92,22 +140,54 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
 
 
 async def transcribe_audio(audio_bytes: bytes) -> str:
-    _ensure_configured()
-    model = genai.GenerativeModel("gemini-2.5-flash")
-
-    audio_part = {
-        "mime_type": "audio/ogg",
-        "data": audio_bytes,
-    }
-    response = model.generate_content(
-        ["Transcreva essa gravacao de audio fielmente. Retorne APENAS o texto transcrito, sem comentarios.", audio_part]
+    client = _get_client()
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=_MODEL,
+        contents=[
+            gtypes.Content(
+                role="user",
+                parts=[
+                    gtypes.Part.from_text(
+                        text="Transcreva essa gravacao de audio fielmente. Retorne APENAS o texto transcrito, sem comentarios."
+                    ),
+                    gtypes.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
+                ],
+            )
+        ],
+        config=gtypes.GenerateContentConfig(
+            temperature=0.2,
+            thinking_config=_THINKING_OFF,
+        ),
     )
-    return response.text.strip() if response.text else ""
+    return (response.text or "").strip()
+
+
+async def analyze_image(image_bytes: bytes) -> str:
+    client = _get_client()
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=_MODEL,
+        contents=[
+            gtypes.Content(
+                role="user",
+                parts=[
+                    gtypes.Part.from_text(text="Descreva esta imagem em ate 50 palavras, em portugues."),
+                    gtypes.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                ],
+            )
+        ],
+        config=gtypes.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=200,
+            thinking_config=_THINKING_OFF,
+        ),
+    )
+    return (response.text or "").strip()
 
 
 async def generate_summary(phone: str) -> str:
     """Gera um resumo curto da conversa com base no historico recente."""
-    _ensure_configured()
     history = await get_chat_history(phone)
     if not history:
         return ""
@@ -118,29 +198,38 @@ async def generate_summary(phone: str) -> str:
         text = entry.get("parts", [{}])[0].get("text", "")
         if text:
             lines.append(f"{role}: {text[:200]}")
-
     if not lines:
         return ""
 
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    client = load_client_data()
-    business_type = (client.get("business", {}) or {}).get("type", "negocio")
+    client_data = load_client_data()
+    business_type = (client_data.get("business", {}) or {}).get("type", "negocio")
     prompt = (
         f"Com base nesse trecho de conversa de {business_type}, "
         "escreva um resumo de 1 a 2 frases em portugues sobre quem e esse lead "
         "e qual o interesse dele. Seja objetivo.\n\n"
         + "\n".join(lines)
     )
+
+    client = _get_client()
     try:
-        response = model.generate_content(prompt)
-        return response.text.strip() if response.text else ""
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=_MODEL,
+            contents=[gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])],
+            config=gtypes.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=150,
+                thinking_config=_THINKING_OFF,
+            ),
+        )
+        return (response.text or "").strip()
     except Exception:
+        logger.exception("Erro ao gerar resumo para %s", phone)
         return ""
 
 
 async def generate_handoff_summary(phone: str) -> str:
     """Gera um resumo organizado das respostas do lead para o alerta de handoff."""
-    _ensure_configured()
     history = await get_chat_history(phone)
     if not history:
         return ""
@@ -151,39 +240,32 @@ async def generate_handoff_summary(phone: str) -> str:
         text = entry.get("parts", [{}])[0].get("text", "")
         if text:
             lines.append(f"{role}: {text[:300]}")
-
     if not lines:
         return ""
 
-    model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = (
         "Abaixo esta a conversa entre um atendente e um lead. "
         "Monte um RESUMO OBJETIVO organizando as respostas que o LEAD deu, em formato de lista curta "
         "(uma linha por topico, no formato 'Topico: resposta'). Use apenas o que o lead respondeu; "
         "se algum topico nao foi respondido, omita. Nao invente. Nao inclua falas do atendente. "
         "Identifique os topicos a partir do que foi efetivamente discutido (ex.: nome, localidade, "
-        "tempo fora do Brasil, intencao de retorno, tipo de investimento, renda mensal, valor de "
-        "investimento mensal, documentos no Brasil, conta bancaria, endereco de referencia, telefone "
-        "de referencia, valor necessario, bem a alienar, finalidade do credito, parcela maxima, "
-        "urgencia, etc.).\n\n"
+        "intencao de participar presencialmente, duvidas sobre o evento, interesse no livro, etc.).\n\n"
         "Conversa:\n" + "\n".join(lines)
     )
+
+    client = _get_client()
     try:
-        response = model.generate_content(prompt)
-        return response.text.strip() if response.text else ""
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=_MODEL,
+            contents=[gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=prompt)])],
+            config=gtypes.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=400,
+                thinking_config=_THINKING_OFF,
+            ),
+        )
+        return (response.text or "").strip()
     except Exception:
+        logger.exception("Erro ao gerar resumo de handoff para %s", phone)
         return ""
-
-
-async def analyze_image(image_bytes: bytes) -> str:
-    _ensure_configured()
-    model = genai.GenerativeModel("gemini-2.5-flash")
-
-    image_part = {
-        "mime_type": "image/jpeg",
-        "data": image_bytes,
-    }
-    response = model.generate_content(
-        ["Descreva esta imagem em ate 50 palavras, em portugues.", image_part]
-    )
-    return response.text.strip() if response.text else ""

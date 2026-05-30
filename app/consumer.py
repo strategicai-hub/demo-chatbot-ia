@@ -18,6 +18,7 @@ from app.config import settings
 from app.client_data import load_client_data
 from app.images import MEDIA_DICT
 from app.services import event_reminders
+from app.services import invitation
 from app.services import redis_service as rds
 from app.services import uazapi
 from app.services.gemini import chat as gemini_chat, transcribe_audio, analyze_image, generate_summary, generate_handoff_summary
@@ -29,6 +30,11 @@ logger = logging.getLogger(__name__)
 
 # Tipos de mensagem de texto
 TEXT_TYPES = {"ExtendedTextMessage", "Conversation", "ContactMessage", "ReactionMessage"}
+
+# Tag dinamica que dispara o envio do convite presencial personalizado.
+# Diferente das tags de MEDIA_DICT (URLs estaticas): a URL e gerada em runtime
+# pela LP, por isso e interceptada separadamente em _parse_ai_response.
+INVITE_TAG = "[CONVITE]"
 
 # --- LOG DE SESSAO ---
 # Buffer por task: cada mensagem processada e suas tasks derivadas compartilham
@@ -332,14 +338,16 @@ def _move_event_closing_to_end(parts: list[dict]) -> list[dict]:
     return ordered_parts + closing_parts
 
 
-def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
+def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool, str | None]:
     """
     Parseia a resposta da IA:
     - Extrai flag [FINALIZADO=0/1]
     - Extrai flag [TRANSFERIR=0/1] (indica transferencia para equipe humana)
+    - Extrai [NOME_COMPLETO=...] (nome real do lead p/ o convite; removido do texto)
     - Quebra em partes (por \\n\\n ou |||)
+    - Intercepta a tag [CONVITE] -> parte {type:"invite"} (URL gerada em runtime)
     - Detecta tags de midia e substitui pelos links do dicionario
-    Retorna (partes, finalizado, transferir).
+    Retorna (partes, finalizado, transferir, full_name).
     """
     finalizado = False
     match = re.search(r"\[FINALIZADO=(\d)\]", text)
@@ -353,6 +361,12 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
         transferir = match_t.group(1) == "1"
         text = re.sub(r"\[TRANSFERIR=\d\]", "", text).strip()
 
+    full_name = None
+    match_n = re.search(r"\[NOME_COMPLETO=([^\]]+)\]", text)
+    if match_n:
+        full_name = match_n.group(1).strip()
+        text = re.sub(r"\[NOME_COMPLETO=[^\]]+\]", "", text).strip()
+
     if "|||" in text:
         raw_parts = [p.strip() for p in text.split("|||") if p.strip()]
     else:
@@ -360,6 +374,14 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
 
     parts = []
     for part in raw_parts:
+        # [CONVITE] e dinamico: gera/envia o convite presencial (ver send loop).
+        if INVITE_TAG in part:
+            caption = part.replace(INVITE_TAG, "").strip()
+            if caption:
+                parts.append({"type": "text", "content": caption})
+            parts.append({"type": "invite"})
+            continue
+
         tag_match = re.search(r"\[([A-Z_]+)\]", part)
         if tag_match and f"[{tag_match.group(1)}]" in MEDIA_DICT:
             tag = f"[{tag_match.group(1)}]"
@@ -373,7 +395,7 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool]:
 
     parts = _move_event_closing_to_end(parts)
 
-    return parts, finalizado, transferir
+    return parts, finalizado, transferir, full_name
 
 
 # ---- processamento principal ----
@@ -420,7 +442,8 @@ async def _process_message(msg: dict) -> None:
         await rds.delete_lead(phone)
         await rds.delete_buffer(phone)
         await rds.delete_block(phone)
-        log(_ok(f"[{phone}] Reset solicitado — historico, lead e bloqueio apagados"))
+        await rds.clear_invite_sent(phone)
+        log(_ok(f"[{phone}] Reset solicitado — historico, lead, bloqueio e convite apagados"))
         try:
             await uazapi.send_text(phone, "Conversa reiniciada.")
         except Exception as e:
@@ -594,7 +617,11 @@ async def _process_message(msg: dict) -> None:
         return
 
     # I) Parsing e envio
-    parts, finalizado, transferir = _parse_ai_response(ai_response)
+    parts, finalizado, transferir, full_name = _parse_ai_response(ai_response)
+    if full_name and full_name != lead.get("name"):
+        await rds.update_lead(phone, name=full_name)
+        lead["name"] = full_name
+        log(_ok(f"[{phone}] Nome completo atualizado para o convite: {full_name}"))
     if refund_policy_requested:
         transferir = True
     if refund_policy_requested:
@@ -619,6 +646,8 @@ async def _process_message(msg: dict) -> None:
                 await uazapi.send_document(phone, part["content"])
             elif part["type"] == "video":
                 await uazapi.send_video(phone, part["content"])
+            elif part["type"] == "invite":
+                await _send_personalized_invite(phone, lead)
         except Exception as e:
             log(_err(f"[TOOL WHATSAPP] Resultado: FALHA ao enviar {part['type']} ({i+1}/{len(parts)}) - {e}"))
             logger.exception("Erro ao enviar %s para %s", part["type"], phone)
@@ -636,6 +665,71 @@ async def _process_message(msg: dict) -> None:
     await _update_summary_and_sheets(phone, lead.get("name", ""))
 
     _save_session_log(phone)
+
+
+async def _send_personalized_invite(phone: str, lead: dict) -> None:
+    """Gera (via LP) e envia o convite presencial personalizado.
+
+    Idempotente e com falha graciosa: se o secret nao esta setado, manda um
+    texto de fallback; se o nome esta incompleto, pula (sem queimar a flag); se
+    a LP ja marcou enviado, nao reenvia (a menos que a flag local esteja limpa).
+    """
+    name = (lead.get("name") or "").strip()
+
+    if not settings.INVITE_API_SECRET:
+        log(_warn("[TOOL CONVITE] Nao acionado - INVITE_API_SECRET nao configurado"))
+        await _send_invite_fallback(phone)
+        return
+
+    if len(name.split()) < 2:
+        log(_warn(f"[TOOL CONVITE] Nome incompleto para {phone} (name={name!r}) - pulando geracao"))
+        return
+
+    if await rds.is_invite_sent(phone):
+        log(f"[TOOL CONVITE] Ignorado - convite ja enviado para {phone}")
+        return
+
+    log(f"[TOOL CONVITE] Executando fetch_invitation(phone={phone}, name={name!r})")
+    try:
+        data = await invitation.fetch_invitation(phone, name)
+    except Exception as e:
+        log(_err(f"[TOOL CONVITE] Resultado: FALHA ao gerar convite - {e}"))
+        logger.exception("Erro ao gerar convite para %s", phone)
+        await _send_invite_fallback(phone)
+        return
+
+    if data.get("already_sent"):
+        # A LP ja entregou (ex.: via formulario presencial). Nao duplica.
+        await rds.set_invite_sent(phone)
+        log(f"[TOOL CONVITE] Ja entregue pela LP (already_sent) para {phone} - nao reenvia")
+        return
+
+    try:
+        await uazapi.send_image(phone, data["image_url"])
+        await asyncio.sleep(3)
+        await rds.set_invite_sent(phone)
+        await invitation.mark_sent(phone)
+        await rds.update_lead(
+            phone,
+            invite_sent_at=datetime.now(_SP_TZ_CONSUMER).isoformat(timespec="seconds"),
+            checkin_url=data.get("checkin_url", ""),
+        )
+        log(_ok(f"[TOOL CONVITE] Resultado: SUCESSO - convite enviado para {phone}"))
+    except Exception as e:
+        log(_err(f"[TOOL CONVITE] Resultado: FALHA ao enviar imagem - {e}"))
+        logger.exception("Erro ao enviar convite para %s", phone)
+        await _send_invite_fallback(phone)
+
+
+async def _send_invite_fallback(phone: str) -> None:
+    try:
+        await uazapi.send_text(
+            phone,
+            "Vou te enviar seu convite personalizado em instantes. "
+            "Se nao chegar, a equipe te ajuda por aqui! 😉",
+        )
+    except Exception as e:
+        log(_err(f"[TOOL CONVITE] Fallback de texto tambem falhou - {e}"))
 
 
 async def _maybe_send_alert(phone: str, lead: dict, user_msg: str) -> None:

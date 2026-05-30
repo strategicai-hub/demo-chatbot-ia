@@ -2,26 +2,27 @@ from app.consumer import _parse_ai_response
 
 
 def test_text_simple():
-    parts, fin, trans = _parse_ai_response("Oi, tudo bem?")
+    parts, fin, trans, name = _parse_ai_response("Oi, tudo bem?")
     assert parts == [{"type": "text", "content": "Oi, tudo bem?"}]
     assert fin is False
     assert trans is False
+    assert name is None
 
 
 def test_finalizado_flag_true():
-    parts, fin, trans = _parse_ai_response("Tchau! [FINALIZADO=1]")
+    parts, fin, trans, _ = _parse_ai_response("Tchau! [FINALIZADO=1]")
     assert parts[0]["content"] == "Tchau!"
     assert fin is True
     assert trans is False
 
 
 def test_finalizado_flag_false():
-    _, fin, _ = _parse_ai_response("Ainda conversando [FINALIZADO=0]")
+    _, fin, _, _ = _parse_ai_response("Ainda conversando [FINALIZADO=0]")
     assert fin is False
 
 
 def test_transferir_flag_true():
-    parts, fin, trans = _parse_ai_response(
+    parts, fin, trans, _ = _parse_ai_response(
         "Excelente! Vou repassar para a equipe. [TRANSFERIR=1]"
     )
     assert trans is True
@@ -30,7 +31,7 @@ def test_transferir_flag_true():
 
 
 def test_both_flags_together():
-    parts, fin, trans = _parse_ai_response("Combinado! [TRANSFERIR=1] [FINALIZADO=1]")
+    parts, fin, trans, _ = _parse_ai_response("Combinado! [TRANSFERIR=1] [FINALIZADO=1]")
     assert fin is True
     assert trans is True
     assert "[TRANSFERIR" not in parts[0]["content"]
@@ -38,19 +39,19 @@ def test_both_flags_together():
 
 
 def test_split_by_triple_pipe():
-    parts, _, _ = _parse_ai_response("Oi!|||Tudo bem?")
+    parts, _, _, _ = _parse_ai_response("Oi!|||Tudo bem?")
     assert len(parts) == 2
     assert parts[0]["content"] == "Oi!"
     assert parts[1]["content"] == "Tudo bem?"
 
 
 def test_split_by_double_newline():
-    parts, _, _ = _parse_ai_response("Primeira.\n\nSegunda.")
+    parts, _, _, _ = _parse_ai_response("Primeira.\n\nSegunda.")
     assert len(parts) == 2
 
 
 def test_event_reminder_farewell_is_moved_to_last_part():
-    parts, _, _ = _parse_ai_response(
+    parts, _, _, _ = _parse_ai_response(
         "A Comunicação Humanizada ajuda a transformar conversas difíceis.\n\n"
         "Vou te enviar lembretes mais próximo do dia do evento. "
         "E, se tiver qualquer dúvida até lá, pode me perguntar por aqui.\n\n"
@@ -64,7 +65,7 @@ def test_event_reminder_farewell_is_moved_to_last_part():
 
 
 def test_new_event_closing_messages_are_moved_to_last_parts():
-    parts, _, _ = _parse_ai_response(
+    parts, _, _, _ = _parse_ai_response(
         "Comunicação Humanizada ajuda a reduzir conflitos.\n\n"
         "Quando estivermos mais perto da data, eu vou te mandar novos lembretes "
         "por aqui para você não esquecer, ta bom?\n\n"
@@ -81,6 +82,29 @@ def test_new_event_closing_messages_are_moved_to_last_parts():
 
 def test_unknown_tag_falls_through_as_text():
     # Tag que nao esta em MEDIA_DICT deve virar texto normal
-    parts, _, _ = _parse_ai_response("Olha isso: [FOTO_INEXISTENTE]")
+    parts, _, _, _ = _parse_ai_response("Olha isso: [FOTO_INEXISTENTE]")
     assert parts[0]["type"] == "text"
     assert "[FOTO_INEXISTENTE]" in parts[0]["content"]
+
+
+def test_convite_tag_emits_invite_part_with_caption():
+    parts, fin, trans, name = _parse_ai_response(
+        "Prontinho! Aqui está o seu convite 🎟️ [CONVITE] [TRANSFERIR=0] [FINALIZADO=0]"
+    )
+    # uma parte de texto (caption) + uma parte de convite
+    assert {"type": "invite"} in parts
+    text_parts = [p for p in parts if p["type"] == "text"]
+    assert text_parts and "convite" in text_parts[0]["content"].lower()
+    assert "[CONVITE]" not in text_parts[0]["content"]
+    assert fin is False
+    assert trans is False
+
+
+def test_nome_completo_is_extracted_and_stripped():
+    parts, _, _, name = _parse_ai_response(
+        "Perfeito! [NOME_COMPLETO=João da Silva] Vou gerar seu convite. [CONVITE]"
+    )
+    assert name == "João da Silva"
+    # a flag nao aparece em nenhuma parte de texto
+    assert all("[NOME_COMPLETO" not in p.get("content", "") for p in parts)
+    assert {"type": "invite"} in parts

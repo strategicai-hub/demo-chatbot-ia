@@ -157,6 +157,23 @@ async def is_alert_sent(phone: str) -> bool:
     return await r.exists(keys.alert_key(phone)) == 1
 
 
+# --------------- convite presencial (idempotencia) ---------------
+
+async def is_invite_sent(phone: str) -> bool:
+    r = await get_redis()
+    return await r.exists(keys.invite_sent_key(phone)) == 1
+
+
+async def set_invite_sent(phone: str, ttl: int = 60 * 60 * 24 * 30) -> None:
+    r = await get_redis()
+    await r.set(keys.invite_sent_key(phone), "1", ex=ttl)
+
+
+async def clear_invite_sent(phone: str) -> None:
+    r = await get_redis()
+    await r.delete(keys.invite_sent_key(phone))
+
+
 # --------------- leads ---------------
 
 async def get_lead(phone: str) -> dict | None:

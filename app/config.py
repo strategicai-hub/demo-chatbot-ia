@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     EVENT_REMINDERS_ENABLED: bool = True
     EVENT_REMINDER_POLL_SECONDS: int = 60
 
+    # Convite presencial personalizado (a LP gera a imagem + QR de check-in).
+    # A LP expõe POST {INVITE_API_URL}/api/invite protegido por shared-secret.
+    # Sem INVITE_API_SECRET o recurso fica desligado (bot manda texto de fallback).
+    INVITE_API_URL: str = "https://ch.ikigaibrasil.com"
+    INVITE_API_SECRET: str = ""
+
     # Alerta de atendimento humano
     # Formato: somente digitos, com DDI (ex: 5511999990000)
     ALERT_PHONE: str = ""
