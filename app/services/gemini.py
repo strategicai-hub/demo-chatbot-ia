@@ -111,6 +111,19 @@ async def chat(phone: str, user_message: str, lead_name: str = "") -> tuple[str,
 
     niche = resolve_niche(locked_niche=locked_niche)
 
+    # Semeia o historico com as 2 mensagens iniciais que JA foram enviadas
+    # (pela LP/n8n no momento da inscricao). Sem isto, no primeiro turno o
+    # historico fica vazio e o modelo reenvia/reescreve a saudacao inicial.
+    if not history and niche == "lancamento_livro":
+        event = (load_client_data(niche=niche).get("event") or {})
+        seeded = False
+        for opening in (event.get("first_message"), event.get("second_message")):
+            if opening:
+                await append_chat_history(phone, "model", opening)
+                seeded = True
+        if seeded:
+            history = await get_chat_history(phone)
+
     contents = _history_to_contents(history)
     contents.append(
         gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=_temporal_prefix() + user_message)])
