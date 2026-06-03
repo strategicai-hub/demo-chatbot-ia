@@ -37,7 +37,7 @@ TEMPLATE_REPO = f"{GITHUB_OWNER}/plano-start-template"
 SAI_TOOLS_REPO = f"{GITHUB_OWNER}/sai-tools"
 WEBHOOK_DOMAIN = "webhook-whatsapp.strategicai.com.br"
 
-PORTAINER_URL = "https://91.98.64.92:9443"
+PORTAINER_URL = "https://portainer.strategicai.com.br"
 PORTAINER_ENDPOINT_ID = 1
 
 # ── secrets locais (nunca vao para o git) ────────────────
