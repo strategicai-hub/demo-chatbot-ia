@@ -49,6 +49,21 @@ class Settings(BaseSettings):
     EVENT_REMINDERS_ENABLED: bool = True
     EVENT_REMINDER_POLL_SECONDS: int = 60
 
+    # Campanha de outreach (disparo proativo "vai ao evento presencial?").
+    # O liga/desliga REAL vem da LP (flag `outreach_active`, controlada no painel).
+    # OUTREACH_ENABLED apenas habilita o loop neste deploy; nada e enviado
+    # enquanto a LP nao estiver com a campanha ativa.
+    OUTREACH_ENABLED: bool = True
+    OUTREACH_POLL_SECONDS: int = 60          # checagem quando ocioso / fora de janela
+    OUTREACH_MIN_INTERVAL: int = 90          # intervalo MIN entre envios (s) - anti-ban
+    OUTREACH_MAX_INTERVAL: int = 240         # intervalo MAX entre envios (s) - anti-ban
+    OUTREACH_WINDOW_START: int = 9           # hora SP de inicio da janela de envio
+    OUTREACH_WINDOW_END: int = 20            # hora SP de fim (exclusivo)
+    OUTREACH_DAILY_RAMP: str = "40,80,150"   # cap diario por dia de campanha (ultimo repete)
+    OUTREACH_PAUSE_EVERY: int = 15           # a cada N envios, faz uma pausa longa
+    OUTREACH_PAUSE_MIN: int = 480            # pausa longa MIN (s)
+    OUTREACH_PAUSE_MAX: int = 720            # pausa longa MAX (s)
+
     # Convite presencial personalizado (a LP gera a imagem + QR de check-in).
     # A LP expõe POST {INVITE_API_URL}/api/invite protegido por shared-secret.
     # Sem INVITE_API_SECRET o recurso fica desligado (bot manda texto de fallback).
@@ -125,6 +140,12 @@ class Settings(BaseSettings):
         if not self.BLOCKED_SENDER_PHONES:
             return set()
         return {p.strip() for p in self.BLOCKED_SENDER_PHONES.split(",") if p.strip()}
+
+    @property
+    def outreach_daily_ramp(self) -> list[int]:
+        raw = (self.OUTREACH_DAILY_RAMP or "").strip()
+        out = [int(p.strip()) for p in raw.split(",") if p.strip().isdigit()]
+        return out or [150]
 
     @property
     def admin_phones_set(self) -> set[str]:

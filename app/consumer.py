@@ -19,6 +19,7 @@ from app.client_data import load_client_data
 from app.images import MEDIA_DICT
 from app.services import event_reminders
 from app.services import invitation
+from app.services import outreach
 from app.services import redis_service as rds
 from app.services import uazapi
 from app.services.gemini import chat as gemini_chat, transcribe_audio, analyze_image, generate_summary, generate_handoff_summary
@@ -563,6 +564,20 @@ async def _process_message(msg: dict) -> None:
 
     unified_msg = "\n".join(messages)
     log(_msg(f"[{phone} - {push_name}] {unified_msg[:300]}"))
+
+    # Campanha de outreach: se este lead recebeu a abertura "vai ao presencial?",
+    # trata a resposta deterministicamente (presenca -> nome -> convite) sem
+    # acionar o Gemini. Respostas ambiguas/perguntas caem no fluxo normal.
+    if lead.get("outreach_stage") in ("asked", "awaiting_name"):
+        try:
+            if await outreach.handle_reply(phone, lead, unified_msg):
+                log(_ok(f"[OUTREACH] Resposta da campanha tratada para {phone} (stage={lead.get('outreach_stage')})"))
+                await _update_summary_and_sheets(phone, lead.get("name", ""))
+                _save_session_log(phone)
+                return
+        except Exception:
+            log(_err(f"[OUTREACH] Falha ao tratar resposta da campanha para {phone} — caindo no fluxo normal"))
+            logger.exception("Erro no handle_reply de outreach para %s", phone)
 
     recent_history = await rds.get_chat_history(phone)
     refund_policy_requested = _is_refund_policy_question(unified_msg)

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.services import event_reminders, rabbitmq, sai_sync
+from app.services import event_reminders, outreach, rabbitmq, sai_sync
 from app.webhook import router
 from app.api import public_router as public_api_router
 from app.api import router as api_router
@@ -22,10 +22,11 @@ logging.basicConfig(
 async def lifespan(_app: FastAPI):
     sync_task = asyncio.create_task(sai_sync.start_polling())
     reminder_task = asyncio.create_task(event_reminders.start_loop())
+    outreach_task = asyncio.create_task(outreach.start_loop())
     try:
         yield
     finally:
-        for task in (sync_task, reminder_task):
+        for task in (sync_task, reminder_task, outreach_task):
             task.cancel()
             try:
                 await task

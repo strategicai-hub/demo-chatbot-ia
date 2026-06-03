@@ -55,6 +55,36 @@ communication_humanizada:
     - "Caminhos para reduzir conflitos e transformar conversas difíceis em pontes."
     - "Segurança psicológica e relações mais saudáveis em empresas, famílias e sociedade."
 
+# Campanha de outreach (disparo proativo "vai ao evento presencial?").
+# Edite os textos aqui. Suporta spintax {a|b|c} (sorteia uma opcao por envio,
+# pra cada mensagem sair levemente diferente) e o placeholder {name} (1o nome).
+# ATENCAO: alterar estes textos exige redeploy do bot (o yaml vai na imagem).
+outreach:
+  # Mensagem INICIAL enviada na campanha (a pergunta de presenca):
+  opener: >
+    {Oi|Olá|Opa}, {name}! {Aqui é a|Quem fala é a} Mya, do lançamento do livro
+    Comunicação Humanizada 🙌
+
+    {Vi que você se inscreveu|Você garantiu sua inscrição} e
+    {queria confirmar|passei pra confirmar} uma coisinha: você
+    {pretende ir|vai} ao evento *presencial* {nesta sexta, 05/06|no dia 05/06}?
+  # Quando a pessoa confirma que vai (pede o nome do convite):
+  name_request: >
+    {Que bom|Maravilha|Perfeito} que você vai! 🎉 Para eu gerar o seu convite
+    com QR Code de check-in, {qual nome você quer que apareça nele|qual nome devo
+    colocar no convite}?
+  # Quando a pessoa diz que NAO vai:
+  decline_reply: >
+    {Sem problema|Tudo bem|Sem crise}! Obrigada por avisar 💛 Se mudar de ideia
+    ou preferir participar online, é só me chamar por aqui.
+  # Quando o nome veio incompleto (so 1 palavra):
+  incomplete_name_reply: >
+    Pode me mandar seu nome completo (nome e sobrenome) pra eu colocar no convite?
+  # Enviada logo apos o convite, encerrando:
+  after_invite_closing: >
+    {Prontinho|Pronto}! Te espero no dia 05/06, às 18:30 😊 Qualquer dúvida, é só
+    me chamar por aqui.
+
 reminders:
   day_before:
     date: "2026-06-04"

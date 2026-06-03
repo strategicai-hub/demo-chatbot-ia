@@ -74,3 +74,39 @@ async def mark_sent(phone: str) -> None:
         resp.raise_for_status()
     except Exception as exc:
         logger.warning("Falha ao marcar convite enviado na LP para %s: %s", phone, exc)
+
+
+# --- campanha de outreach (fila + status na LP) ---
+
+async def fetch_pending(limit: int = 50) -> dict:
+    """GET /api/outreach/pending -> {active, leads:[{id,name,phone}]}.
+
+    A LP so devolve leads quando a campanha esta ativa (botao do painel) e ja
+    exclui quem recebeu convite ou ja foi perguntado/falhou.
+    """
+    if not settings.INVITE_API_SECRET:
+        return {"active": False, "leads": []}
+    url = f"{_base_url()}/api/outreach/pending?limit={int(limit)}"
+    client = _get_client()
+    resp = await client.get(url, headers=_headers())
+    resp.raise_for_status()
+    return resp.json() or {"active": False, "leads": []}
+
+
+async def report_outreach_status(phone: str, status: str, error: str = "") -> None:
+    """POST /api/outreach/status {phone,status,error?}. Best-effort.
+
+    status: 'sent' (1a mensagem enviada) | 'failed' (erro no envio).
+    """
+    if not settings.INVITE_API_SECRET:
+        return
+    url = f"{_base_url()}/api/outreach/status"
+    body = {"phone": phone, "status": status}
+    if error:
+        body["error"] = error[:300]
+    client = _get_client()
+    try:
+        resp = await client.post(url, content=_json_body(body), headers=_headers())
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("Falha ao reportar outreach status p/ %s: %s", phone, exc)

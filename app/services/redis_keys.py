@@ -53,6 +53,16 @@ def session_log_key() -> str:
     return f"{settings.PROJECT_SLUG}:logs"
 
 
+# --- campanha de outreach (disparo proativo) ---
+
+def outreach_daily_key(yyyymmdd: str) -> str:
+    return f"{settings.PROJECT_SLUG}:outreach:count:{yyyymmdd}"
+
+
+def outreach_campaign_start_key() -> str:
+    return f"{settings.PROJECT_SLUG}:outreach:campaign_start"
+
+
 # --- patterns + helpers para as rotas de leitura ---
 
 def lead_scan_pattern() -> str:
