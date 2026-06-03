@@ -30,6 +30,10 @@ jobs:
         with:
           context: .
           push: true
+          # provenance/sbom geram um indice OCI com attestation que o Swarm nao
+          # consegue rodar ("No such image"). Desligar -> imagem simples pullable.
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
