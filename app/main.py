@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.services import event_reminders, outreach, rabbitmq, sai_sync
+from app.services import rabbitmq, sai_sync
 from app.webhook import router
 from app.api import public_router as public_api_router
 from app.api import router as api_router
@@ -20,18 +20,22 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # IMPORTANTE: o bot opera apenas em modo REATIVO (so responde a quem fala).
+    # Os disparadores proativos (lembretes de evento e outreach em massa) estao
+    # DESLIGADOS porque o envio em massa levou a Meta a bloquear o numero.
+    # As funcoes reativas desses modulos (handle_reply / parse_presence_*) seguem
+    # disponiveis pelo consumer; so os loops de disparo foram removidos.
+    #   reminder_task = asyncio.create_task(event_reminders.start_loop())
+    #   outreach_task = asyncio.create_task(outreach.start_loop())
     sync_task = asyncio.create_task(sai_sync.start_polling())
-    reminder_task = asyncio.create_task(event_reminders.start_loop())
-    outreach_task = asyncio.create_task(outreach.start_loop())
     try:
         yield
     finally:
-        for task in (sync_task, reminder_task, outreach_task):
-            task.cancel()
-            try:
-                await task
-            except (asyncio.CancelledError, Exception):
-                pass
+        sync_task.cancel()
+        try:
+            await sync_task
+        except (asyncio.CancelledError, Exception):
+            pass
         await rabbitmq.close()
 
 
