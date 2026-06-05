@@ -237,8 +237,7 @@ def _is_event_closing_text(text: str) -> bool:
         and "vou te mandar novos lembretes" in normalized
     )
     doubt_closing = (
-        "ate la" in normalized
-        and "qualquer duvida" in normalized
+        "qualquer duvida" in normalized
         and "e so me chamar" in normalized
     )
     return old_closing or reminder_closing or doubt_closing
