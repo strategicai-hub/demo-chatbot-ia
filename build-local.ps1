@@ -78,7 +78,10 @@ if (-not ($buildxList | Select-String $builderName)) {
     docker buildx use $builderName | Out-Null
 }
 $metaFile = Join-Path $env:TEMP "demo-chatbot-ia-meta.json"
-docker buildx build --platform linux/amd64 --push --tag $IMAGE --metadata-file $metaFile $projectRoot
+# --provenance=false --sbom=false: sem isso o buildx (driver docker-container) gera
+# um indice OCI com attestation manifest, e o Docker Swarm NAO consegue puxar esse
+# indice ("No such image" / update paused). Mantem o digest como manifest simples.
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false --push --tag $IMAGE --metadata-file $metaFile $projectRoot
 if ($LASTEXITCODE -ne 0) { Write-Error "Build falhou." }
 
 $meta   = Get-Content $metaFile -Raw | ConvertFrom-Json
@@ -92,6 +95,14 @@ Write-Host "=== [3/4] Deploy via Portainer ===" -ForegroundColor Cyan
 $baseUrl = $PORTAINER_URL.TrimEnd("/")
 $headers = @{ "X-API-Key" = $PORTAINER_TOKEN; "Content-Type" = "application/json" }
 
+# X-Registry-Auth: equivalente ao `docker service update --with-registry-auth`.
+# Sem isso, o force-update sobrescreve o spec do servico SEM a credencial do GHCR
+# embutida -> o no do Swarm nao consegue puxar a imagem privada ("No such image"
+# / update paused). E base64url(JSON) com user+token do GHCR.
+$regAuthJson = @{ username = $GHCR_USER; password = $GHCR_TOKEN; serveraddress = "ghcr.io" } | ConvertTo-Json -Compress
+$regAuthB64  = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($regAuthJson)).Replace('+','-').Replace('/','_').TrimEnd('=')
+$updateHeaders = @{ "X-API-Key" = $PORTAINER_TOKEN; "Content-Type" = "application/json"; "X-Registry-Auth" = $regAuthB64 }
+
 foreach ($svcName in $SERVICES) {
     Write-Host "  Atualizando $svcName..."
     $svcResp = Invoke-RestMethod -Uri "$baseUrl/api/endpoints/1/docker/services/$svcName" -Headers $headers -Method Get
@@ -102,7 +113,7 @@ foreach ($svcName in $SERVICES) {
     $spec.TaskTemplate.ForceUpdate = $fu + 1
     $body = $spec | ConvertTo-Json -Depth 20
     Invoke-RestMethod -Uri "$baseUrl/api/endpoints/1/docker/services/$svcName/update?version=$version" `
-        -Headers $headers -Method Post -Body $body | Out-Null
+        -Headers $updateHeaders -Method Post -Body $body | Out-Null
     Write-Host "  OK: $svcName -> $IMAGE_REF" -ForegroundColor Green
 }
 
