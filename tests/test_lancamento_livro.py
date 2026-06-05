@@ -33,9 +33,10 @@ def test_builds_lancamento_livro_prompt(monkeypatch):
         "Gostaria de garantir seu exemplar autografado?"
     ) in rendered
     assert "Que ótimo! Para a dedicatória, qual seria o nome completo que você gostaria no livro?" in rendered
-    assert "Qualquer dúvida, é só me chamar por aqui" in rendered
     assert "NUNCA prometa enviar lembretes" in rendered
+    assert "NÃO envie nenhuma mensagem de encerramento pronta" in rendered
     assert "Quando estivermos mais perto da data" not in rendered
+    assert "Qualquer dúvida, é só me chamar por aqui" not in rendered
     assert "O pedido de reembolso pode ser feito em até 7 dias" in rendered
     assert "Valor do livro físico com dedicatória: R$ 49,50" in rendered
     assert "O livro físico com dedicatória exclusiva está R$ 49,50." in rendered
