@@ -3,6 +3,7 @@ Fluxo 2: RabbitMQ -> IA -> Resposta WhatsApp
 Consome mensagens da fila, processa com Gemini e responde via UAZAPI.
 """
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -434,6 +435,23 @@ async def _process_message(msg: dict) -> None:
     allowed = settings.allowed_phones_set
     if allowed and phone not in allowed:
         logger.info("Phone %s fora da whitelist ALLOWED_PHONES - ignorando", phone)
+        return
+
+    # A.3) Idempotencia: descarta webhook duplicado (mesma mensagem entregue 2x
+    # pela UAZAPI ou pelo relay), causa raiz das respostas duplicadas. Quando ha
+    # id da mensagem, dedup por id (janela longa). Sem id, fingerprint por
+    # conteudo com janela curta (so pega a rajada de duplicatas ~100-150ms, sem
+    # bloquear uma repeticao legitima mais espacada).
+    message_id = msg.get("message_id", "")
+    if message_id:
+        fingerprint, dedup_ttl = f"id:{message_id}", 600
+    else:
+        digest = hashlib.sha256(
+            f"{phone}|{from_me}|{msg_type}|{msg_text}|{msg.get('media_url', '')}".encode("utf-8")
+        ).hexdigest()[:20]
+        fingerprint, dedup_ttl = f"c:{digest}", 15
+    if not await rds.mark_message_processed(fingerprint, ttl=dedup_ttl):
+        logger.info("Mensagem duplicada descartada (%s) para %s", fingerprint, phone)
         return
 
     # B) Comando /reset fura bloqueio para recuperar conversas travadas.

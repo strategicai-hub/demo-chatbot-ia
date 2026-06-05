@@ -49,6 +49,11 @@ def followup_active_key(phone: str) -> str:
     return f"{_phone_ns(phone)}:followup:active"
 
 
+def dedup_key(fingerprint: str) -> str:
+    """Chave de idempotencia por mensagem (evita processar webhook duplicado)."""
+    return f"{settings.PROJECT_SLUG}:dedup:{fingerprint}"
+
+
 def session_log_key() -> str:
     return f"{settings.PROJECT_SLUG}:logs"
 

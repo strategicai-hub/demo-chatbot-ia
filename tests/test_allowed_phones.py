@@ -236,6 +236,9 @@ async def test_reset_clears_block_before_block_check(monkeypatch):
     async def fake_delete_block(phone):
         calls.append(("delete_block", phone))
 
+    async def fake_clear_invite_sent(phone):
+        calls.append(("clear_invite_sent", phone))
+
     async def fake_is_blocked(phone):
         raise AssertionError("/reset deve ser processado antes da checagem de bloqueio")
 
@@ -247,6 +250,7 @@ async def test_reset_clears_block_before_block_check(monkeypatch):
     monkeypatch.setattr(consumer.rds, "delete_lead", fake_delete_lead)
     monkeypatch.setattr(consumer.rds, "delete_buffer", fake_delete_buffer)
     monkeypatch.setattr(consumer.rds, "delete_block", fake_delete_block)
+    monkeypatch.setattr(consumer.rds, "clear_invite_sent", fake_clear_invite_sent)
     monkeypatch.setattr(consumer.rds, "is_blocked", fake_is_blocked)
     monkeypatch.setattr(consumer.uazapi, "send_text", fake_send_text)
     monkeypatch.setattr(consumer, "_save_session_log", lambda phone: None)

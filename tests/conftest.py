@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 # Adiciona a raiz do projeto ao sys.path para permitir "from app import ..."
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -32,3 +34,16 @@ _client_yaml = ROOT / "client.yaml"
 if not _client_yaml.exists():
     import shutil
     shutil.copy(ROOT / "client.example.yaml", _client_yaml)
+
+
+@pytest.fixture(autouse=True)
+def _stub_dedup(monkeypatch):
+    """Neutraliza o dedup de mensagens nos testes unitarios (sem Redis real):
+    sempre 'primeira vez', entao a mensagem segue o fluxo normal. Testes que
+    querem exercitar o descarte de duplicata sobrescrevem este stub."""
+    from app.services import redis_service as rds
+
+    async def _always_first(fingerprint, ttl=600):
+        return True
+
+    monkeypatch.setattr(rds, "mark_message_processed", _always_first)

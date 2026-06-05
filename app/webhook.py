@@ -37,6 +37,17 @@ async def webhook(request: Request):
     chat_id = raw_sender
     push_name = msg.get("senderName", "")
 
+    # ID unico da mensagem no WhatsApp (UAZAPI usa "id"/"messageid"). Serve de
+    # chave de idempotencia no consumer: o mesmo webhook entregue 2x (UAZAPI
+    # reenvia, ou o relay duplica) e descartado, evitando resposta duplicada.
+    message_id = str(
+        msg.get("id")
+        or msg.get("messageid")
+        or msg.get("messageId")
+        or (msg.get("key") or {}).get("id")
+        or ""
+    )
+
     # Detecta tipo e conteudo da mensagem
     text = msg.get("text", "")
     msg_type_raw = msg.get("messageType", "")
@@ -75,6 +86,7 @@ async def webhook(request: Request):
         "chat_id": chat_id,
         "media_url": media_url,
         "caption": caption,
+        "message_id": message_id,
         "raw_message": msg,
     }
 

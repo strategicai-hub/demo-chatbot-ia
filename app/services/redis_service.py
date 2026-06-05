@@ -96,6 +96,22 @@ async def is_bot_outbound(phone: str, text: str = "") -> bool:
     return normalized in {_normalize_outbound_text(item) for item in recent_texts}
 
 
+# --------------- idempotencia por mensagem (anti-duplicata) ---------------
+
+async def mark_message_processed(fingerprint: str, ttl: int = 600) -> bool:
+    """Marca uma mensagem como processada de forma atomica.
+
+    Retorna True se foi a PRIMEIRA vez (deve processar) ou False se essa
+    mensagem ja tinha sido vista (webhook duplicado -> descartar). Usa SET NX,
+    entao nao ha corrida mesmo com duas entregas quase simultaneas.
+    """
+    if not fingerprint:
+        return True
+    r = await get_redis()
+    created = await r.set(keys.dedup_key(fingerprint), "1", nx=True, ex=ttl)
+    return bool(created)
+
+
 # --------------- buffer de mensagens (debounce) ---------------
 
 async def push_buffer(phone: str, text: str) -> int:
