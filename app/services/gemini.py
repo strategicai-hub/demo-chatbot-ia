@@ -35,7 +35,7 @@ from app.services.redis_service import (
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.1-flash-lite"
 _client: Optional[genai.Client] = None
 
 # thinking_budget=0 em todas as chamadas (regra global de custo).
