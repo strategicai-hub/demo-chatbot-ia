@@ -1,12 +1,12 @@
-niche: lancamento_livro
+niche: clinica_estetica
 
 business:
-  name: Ikigai Brasil
-  type: evento de lançamento de livro
-  address: São Paulo - SP
+  name: Clínica Bellora Estética Avançada
+  type: clínica de estética avançada
+  address: Rua T-55, nº 930, Setor Bueno, Goiânia
 
 assistant:
-  name: Mya
+  name: Sofia
   # greeting é injetado dinamicamente pelo código (prompt.py) com base no
   # horário de São Paulo: "bom dia" / "boa tarde" / "boa noite". Qualquer
   # valor informado aqui é ignorado.

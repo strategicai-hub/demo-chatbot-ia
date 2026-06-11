@@ -36,6 +36,7 @@ ALLOWED_NICHES = {
     "petshop",
     "material_construcao",
     "lancamento_livro",
+    "clinica_estetica",
 }
 NICHE_KEY = f"{settings.PROJECT_SLUG}:active_niche"
 
@@ -141,6 +142,28 @@ def detect_niche_from_message(text: str) -> str | None:
         )
     ):
         return "lancamento_livro"
+
+    if any(
+        k in t
+        for k in (
+            "botox",
+            "toxina",
+            "preenchimento",
+            "harmonizacao",
+            "harmonizacao facial",
+            "olheiras",
+            "bioestimulador",
+            "skinbooster",
+            "peeling",
+            "microagulhamento",
+            "limpeza de pele",
+            "estetica",
+            "estetica facial",
+            "labial",
+            "colageno",
+        )
+    ):
+        return "clinica_estetica"
 
     if any(k in t for k in ("banho", "tosa", "pet shop", "petshop", "gato", "gata", "cachorro", "cadela")):
         return "petshop"

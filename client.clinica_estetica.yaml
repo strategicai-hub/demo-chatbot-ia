@@ -1,0 +1,70 @@
+# ============================================================
+# Dados do nicho clinica_estetica — usado pelo prompt
+# app/prompts/clinica_estetica.j2 (dados ficticios de demo)
+# ============================================================
+
+niche: clinica_estetica
+
+business:
+  name: Clínica Bellora Estética Avançada
+  address: Rua T-55, nº 930, Setor Bueno, Goiânia
+  reference: em frente ao Parque Vaca Brava, ao lado do Goiânia Shopping
+  hours: de segunda a sexta das 9h às 19h, e sábado das 9h às 13h
+  payment: Pix, cartão em até 12x e dinheiro
+
+assistant:
+  name: Sofia
+  # greeting é injetado dinamicamente pelo código com base no horário de São Paulo.
+  greeting: ""
+
+clinica:
+  professional: Dra. Marina Albuquerque
+  professional_role: especialista em harmonização facial
+  # Sempre apresentar como "a partir de" — o valor fechado sai na avaliação.
+  procedures:
+    - name: Preenchimento labial
+      price: a partir de R$ 1.200
+      durability: 8-12 meses
+      pain: Anestésico antes; leve incômodo
+    - name: Botox / toxina (1 região)
+      price: a partir de R$ 800
+      durability: 4-6 meses
+      pain: Quase indolor, agulha fininha
+    - name: Botox 3 regiões (testa, glabela, pés de galinha)
+      price: a partir de R$ 1.600
+      durability: 4-6 meses
+      pain: Quase indolor
+    - name: Harmonização facial
+      price: a partir de R$ 2.500
+      durability: varia conforme o caso
+      pain: Anestésico antes
+    - name: Preenchimento de olheiras
+      price: a partir de R$ 1.400
+      durability: 9-12 meses
+      pain: Leve incômodo
+    - name: Bioestimulador de colágeno
+      price: a partir de R$ 2.000 por frasco
+      durability: 18-24 meses
+      pain: Anestésico antes
+    - name: Skinbooster (hidratação profunda)
+      price: a partir de R$ 1.200
+      durability: 6-9 meses
+      pain: Leve
+    - name: Limpeza de pele profunda
+      price: a partir de R$ 250
+      durability: "—"
+      pain: Indolor
+    - name: Peeling químico
+      price: a partir de R$ 300
+      durability: "—"
+      pain: Leve ardência
+    - name: Microagulhamento
+      price: a partir de R$ 400
+      durability: "—"
+      pain: Anestésico tópico
+
+differentials:
+  - Produtos importados
+  - Anestésico antes de qualquer aplicação
+  - Avaliação personalizada com especialista
+  - Acompanhamento depois do procedimento
