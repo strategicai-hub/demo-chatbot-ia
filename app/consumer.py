@@ -368,10 +368,15 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool, bool, str | None]:
         full_name = match_n.group(1).strip()
         text = re.sub(r"\[NOME_COMPLETO=[^\]]+\]", "", text).strip()
 
-    if "|||" in text:
-        raw_parts = [p.strip() for p in text.split("|||") if p.strip()]
-    else:
-        raw_parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+    # Split por ||| e TAMBEM por \n\n dentro de cada parte: o modelo as vezes
+    # usa ||| mas deixa paragrafo duplo dentro de um balao — cada paragrafo
+    # vira balao proprio (garantia deterministica, nao depende do modelo).
+    raw_parts = [
+        sub.strip()
+        for piece in text.split("|||")
+        for sub in piece.split("\n\n")
+        if sub.strip()
+    ]
 
     parts = []
     for part in raw_parts:
