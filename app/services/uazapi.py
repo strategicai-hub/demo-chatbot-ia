@@ -72,6 +72,24 @@ async def send_video(number: str, video_url: str, caption: str = "") -> dict:
     return await _send_media(number, "video", video_url)
 
 
+async def mark_read(message_id: str) -> None:
+    """Marca a(s) mensagem(ns) do lead como lida(s) -> tick azul no WhatsApp dele.
+
+    Fire-and-forget: qualquer falha so loga, nunca derruba o fluxo de recebimento.
+    """
+    if not message_id:
+        return
+    url = f"{settings.UAZAPI_BASE_URL}/message/markread"
+    payload = {"id": [message_id]}
+    try:
+        client = _get_client()
+        resp = await client.post(url, content=_json_body(payload), headers=_headers())
+        resp.raise_for_status()
+        logger.info("Mensagem %s marcada como lida (tick azul)", message_id)
+    except Exception as exc:
+        logger.warning("Falha ao marcar %s como lida: %s", message_id, exc)
+
+
 async def download_media(media_url: str) -> bytes:
     client = _get_client()
     resp = await client.get(media_url, headers=_headers())

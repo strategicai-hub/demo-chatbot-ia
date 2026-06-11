@@ -2,12 +2,14 @@
 Fluxo 1: Webhook -> RabbitMQ
 Recebe mensagens do WhatsApp (UAZAPI), filtra e publica na fila.
 """
+import asyncio
 import json
 import logging
 
 from fastapi import APIRouter, Request
 
 from app.config import settings
+from app.services import uazapi
 from app.services.rabbitmq import publish
 
 logger = logging.getLogger(__name__)
@@ -89,6 +91,11 @@ async def webhook(request: Request):
         "message_id": message_id,
         "raw_message": msg,
     }
+
+    # Tick azul: marca a mensagem do lead como lida assim que chega (so mensagens
+    # recebidas, nunca fromMe nem grupos). Fire-and-forget para nao atrasar a fila.
+    if not from_me and message_id and "@g.us" not in chat_id:
+        asyncio.create_task(uazapi.mark_read(message_id))
 
     await publish(queue_message)
     logger.info("Mensagem de %s publicada na fila (from_me=%s)", phone, from_me)
